@@ -58,7 +58,7 @@ export const PosterImage: React.FC<PosterImageProps> = ({ path, alt, className, 
       </div>
     );
   }
-  return <img src={imageUrl} alt={alt} className={`object-cover rounded-lg ${className}`} />;
+  return <img src={imageUrl} alt={alt} className={`object-cover ${className?.includes('rounded-') ? '' : 'rounded-lg'} ${className}`} />;
 };
 
 // --- Media Card ---
@@ -87,7 +87,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onAddToWatchlist, on
       onKeyPress={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick?.(item);}}
     >
       <div className="relative">
-        <PosterImage path={item.poster_path} alt={title} className="w-full h-auto aspect-[2/3] cursor-pointer" />
+        <PosterImage path={item.poster_path} alt={title} className="w-full h-auto aspect-[2/3] cursor-pointer rounded-lg" />
         <div className="absolute top-2 right-2 flex flex-col space-y-1.5">
           {onAddToWatchlist && !isSeen && !isPersonCredit && (
             <button
@@ -219,14 +219,42 @@ export const PairwiseComparisonModal: React.FC<PairwiseComparisonModalProps> = (
         <p className="text-slate-300 mb-4 text-sm min-h-[56px] sm:mb-6 sm:min-h-[40px] flex items-center justify-center">{comparisonPrompt || "Considering both, which one stands out more to you?"}</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
           {[itemA, itemB].map((item) => (
-            <div key={item.id} onClick={() => onChoose(item)} role="button" tabIndex={0} onKeyPress={(e) => { if (e.key === 'Enter' || e.key === ' ') onChoose(item);}}
-                 className={`cursor-pointer group p-2 sm:p-3 border-2 border-slate-700 hover:${ACCENT_COLOR_CLASS_BORDER} rounded-xl transition-all bg-slate-800/50 hover:bg-slate-700/50`}
-                 aria-label={`Choose ${item.title || item.name}`}
+            <div // Item Card Wrapper
+              key={item.id} 
+              onClick={() => onChoose(item)} 
+              role="button" 
+              tabIndex={0} 
+              onKeyPress={(e) => { if (e.key === 'Enter' || e.key === ' ') onChoose(item);}}
+              className={`
+                cursor-pointer group border-2 border-slate-700 hover:${ACCENT_COLOR_CLASS_BORDER} 
+                rounded-xl transition-all bg-slate-800/50 hover:bg-slate-700/50
+                flex flex-row items-start space-x-3 p-3                         /* MOBILE STYLES (xs, sm): Horizontal layout, padding, spacing */
+                md:flex-col md:items-center md:space-x-0 md:space-y-2 md:p-3  /* DESKTOP STYLES (md+): Vertical layout, reset spacing */
+              `}
+              aria-label={`Choose ${item.title || item.name}`}
             >
-              <PosterImage path={item.poster_path} alt={item.title || item.name || ''} className={`w-32 h-48 mx-auto sm:w-40 sm:h-60 md:w-full md:aspect-[2/3] rounded-lg shadow-lg group-hover:ring-4 ring-offset-2 ring-offset-slate-800 ${ACCENT_COLOR_CLASS_RING} transition-all`} />
-              <h3 className={`mt-2 text-sm sm:text-base md:text-lg font-medium truncate group-hover:${ACCENT_COLOR_CLASS_TEXT}`}>{item.title || item.name}</h3>
-              <p className="text-xs text-slate-400">{item.genres?.slice(0,2).map(g=>g.name).join(', ')}</p>
-              <p className="text-xs text-slate-400">{(item as RatedItem).runtimeCategory} &bull; {(item as RatedItem).original_language?.toUpperCase()}</p>
+              <PosterImage 
+                path={item.poster_path} 
+                alt={item.title || item.name || ''} 
+                className={`
+                  flex-shrink-0 w-20 h-auto aspect-[2/3] rounded-md shadow-md      /* MOBILE Poster (xs, sm): Smaller size */
+                  group-hover:ring-2 ${ACCENT_COLOR_CLASS_RING} ring-offset-slate-800 ring-offset-1 transition-colors
+                  md:w-full md:aspect-[2/3] md:mx-auto md:rounded-lg md:shadow-lg md:group-hover:ring-4 md:ring-offset-2 /* DESKTOP Poster (md+): Original large style */
+                `} 
+              />
+              <div className={`
+                flex-grow min-w-0 text-left                                     /* MOBILE Text Area (xs, sm) */
+                md:text-center md:mt-0                                           /* DESKTOP Text Area (md+) */
+              `}>
+                <h3 className={`
+                  font-medium truncate group-hover:${ACCENT_COLOR_CLASS_TEXT}
+                  text-sm                                                          /* MOBILE (xs) title size */
+                  sm:text-base                                                       /* MOBILE (sm) title size */
+                  md:text-lg md:mt-2                                                 /* DESKTOP (md+) title size & margin */
+                `}>{item.title || item.name}</h3>
+                <p className="text-xs text-slate-400 truncate">{item.genres?.slice(0,2).map(g=>g.name).join(', ')}</p>
+                <p className="text-xs text-slate-400 truncate">{(item as RatedItem).runtimeCategory} &bull; {(item as RatedItem).original_language?.toUpperCase()}</p>
+              </div>
             </div>
           ))}
         </div>
