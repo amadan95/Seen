@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 // Fix: Add CrewMember, FeedItem, FeedActivityType to types import
 import { MediaItem, Reaction, RatedItem, TMDBGenre, CastMember, CrewMember, Episode, RankedItem, ComparisonStep, WatchProviderDetails, WatchProviderCountryResult, TMDBMovie, TMDBShow, CustomList, CustomListMediaItem, UserProfile, FeedComment, PersonCreditItem, FeedItem, FeedActivityType } from './types';
@@ -212,24 +213,24 @@ interface PairwiseComparisonModalProps { isOpen: boolean; onClose: () => void; i
 export const PairwiseComparisonModal: React.FC<PairwiseComparisonModalProps> = ({ isOpen, onClose, itemA, itemB, comparisonPrompt, onChoose }) => {
   if (!isOpen || !itemA || !itemB) return null;
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 p-6 rounded-xl shadow-2xl w-full max-w-3xl text-center border border-slate-700">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+      <div className="bg-slate-800 p-4 sm:p-6 rounded-xl shadow-2xl w-full max-w-3xl text-center border border-slate-700">
         <h2 className={`text-2xl font-semibold mb-3 ${ACCENT_COLOR_CLASS_TEXT}`}>Which do you prefer?</h2>
-        <p className="text-slate-300 mb-8 text-sm min-h-[40px] flex items-center justify-center">{comparisonPrompt || "Considering both, which one stands out more to you?"}</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-8">
+        <p className="text-slate-300 mb-4 text-sm min-h-[56px] sm:mb-6 sm:min-h-[40px] flex items-center justify-center">{comparisonPrompt || "Considering both, which one stands out more to you?"}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
           {[itemA, itemB].map((item) => (
             <div key={item.id} onClick={() => onChoose(item)} role="button" tabIndex={0} onKeyPress={(e) => { if (e.key === 'Enter' || e.key === ' ') onChoose(item);}}
-                 className={`cursor-pointer group p-3 border-2 border-slate-700 hover:${ACCENT_COLOR_CLASS_BORDER} rounded-xl transition-all bg-slate-800/50 hover:bg-slate-700/50`}
+                 className={`cursor-pointer group p-2 sm:p-3 border-2 border-slate-700 hover:${ACCENT_COLOR_CLASS_BORDER} rounded-xl transition-all bg-slate-800/50 hover:bg-slate-700/50`}
                  aria-label={`Choose ${item.title || item.name}`}
             >
-              <PosterImage path={item.poster_path} alt={item.title || item.name || ''} className={`w-full aspect-[2/3] rounded-lg shadow-lg group-hover:ring-4 ring-offset-2 ring-offset-slate-800 ${ACCENT_COLOR_CLASS_RING} transition-all`} />
-              <h3 className={`mt-3 text-md md:text-lg font-medium truncate group-hover:${ACCENT_COLOR_CLASS_TEXT}`}>{item.title || item.name}</h3>
+              <PosterImage path={item.poster_path} alt={item.title || item.name || ''} className={`w-32 h-48 mx-auto sm:w-40 sm:h-60 md:w-full md:aspect-[2/3] rounded-lg shadow-lg group-hover:ring-4 ring-offset-2 ring-offset-slate-800 ${ACCENT_COLOR_CLASS_RING} transition-all`} />
+              <h3 className={`mt-2 text-sm sm:text-base md:text-lg font-medium truncate group-hover:${ACCENT_COLOR_CLASS_TEXT}`}>{item.title || item.name}</h3>
               <p className="text-xs text-slate-400">{item.genres?.slice(0,2).map(g=>g.name).join(', ')}</p>
               <p className="text-xs text-slate-400">{(item as RatedItem).runtimeCategory} &bull; {(item as RatedItem).original_language?.toUpperCase()}</p>
             </div>
           ))}
         </div>
-        <button onClick={onClose} className="mt-4 px-6 py-2.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors font-semibold" aria-label="Cancel comparison process">Cancel Ranking</button>
+        <button onClick={onClose} className="mt-4 px-4 py-2 sm:px-6 sm:py-2.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors font-semibold" aria-label="Cancel comparison process">Cancel Ranking</button>
       </div>
     </div>
   );
