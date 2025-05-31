@@ -1,0 +1,6 @@
+{
+  "name": "Seen: TV & Movie Tracker",
+  "description": "A web application to track, rate, and rank TV shows and movies, similar to Letterboxd or Beli but for all visual media. Includes social features and personalized recommendations.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
