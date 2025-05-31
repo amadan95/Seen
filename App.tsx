@@ -15,11 +15,18 @@ import MediaCarousel from './MediaCarousel'; // ADD MediaCarousel import
 import { tmdbService, userListService, geminiService, getRuntimeCategory } from './services';
 import { mockFeedItems, mockUser } from './mockData'; 
 import { APP_NAME, REACTION_EMOJIS, REACTION_LABELS, TMDB_IMAGE_BASE_URL_ORIGINAL, ACCENT_COLOR_CLASS_TEXT, ACCENT_COLOR_CLASS_BG, ACCENT_COLOR_CLASS_BG_HOVER, ACCENT_COLOR_CLASS_BORDER, ACCENT_COLOR_CLASS_RING, DEFAULT_USER_ID, STREAMING_PROVIDERS } from './constants';
+import { LoginPage } from './components/LoginPage'; // Added
+import { SignupPage } from './components/SignupPage'; // Added
+import { useAuth } from './contexts/AuthContext'; // Import useAuth
 
 const MAX_COMPARISONS_PER_ITEM = 5;
 
 // NEW: AppContent component
 const AppContent: React.FC = () => {
+  const { user, loading: authLoading } = useAuth(); // Get auth state
+  const navigate = useNavigate(); // Added for redirection
+  const location = useLocation();
+
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [seenList, setSeenList] = useState<RatedItem[]>([]);
   const [customLists, setCustomLists] = useState<CustomList[]>([]);
@@ -39,7 +46,25 @@ const AppContent: React.FC = () => {
 
   const [currentExploreTab, setCurrentExploreTab] = useState<'trendingMovies' | 'trendingShows' | 'search' | 'forYou' | 'moviesOnly' | 'tvShowsOnly'>('trendingMovies');
   
-  const location = useLocation(); // MOVED HERE
+  useEffect(() => {
+    if (!authLoading && !user) {
+      const publicPaths = ['/login', '/signup'];
+      if (!publicPaths.includes(location.pathname)) {
+        navigate('/login');
+      }
+    }
+  }, [authLoading, user, location, navigate]);
+
+  // Show loading spinner for the entire app while auth state is resolving
+  // and user is not yet available, AND we are not on a public path already.
+  // This prevents a flash of content before potential redirect.
+  if (authLoading && !user && !['/login', '/signup'].includes(location.pathname)) {
+    return (
+      <div className="min-h-screen bg-[#111111] text-[#F6F6F6] flex flex-col font-sans items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   const handleCategorySelected = (category: string) => {
     console.log("Selected category from TopNav:", category);
@@ -196,6 +221,8 @@ const AppContent: React.FC = () => {
       {location.pathname === '/explore' && <TopCategoryNav onCategorySelect={handleCategorySelected} />}
         <main className="flex-grow container mx-auto px-3 sm:px-4 py-5 sm:py-6 mb-20">
           <Routes>
+            <Route path="/login" element={<LoginPage />} /> {/* Added login route */}
+            <Route path="/signup" element={<SignupPage />} /> {/* Added signup route */}
             <Route path="/" element={<FeedPage {...commonPageProps} currentUser={mockUser} />} />
           <Route path="/explore" element={<ExplorePage {...commonPageProps} initialTab={currentExploreTab} watchlist={watchlist} />} />
             <Route path="/mylists" element={<MyListsPage {...commonPageProps} openCreateListModal={() => setIsCreateListModalOpen(true)} />} />
@@ -254,23 +281,36 @@ const NavItem: React.FC<{ to: string; icon: React.ReactNode; label: string; onCl
   </NavLink>
 );
 
-const AppNavigation: React.FC<{ setCurrentExploreTab: (tab: 'trendingMovies' | 'trendingShows' | 'search' | 'forYou' | 'moviesOnly' | 'tvShowsOnly') => void }> = ({ setCurrentExploreTab }) => (
-  <nav className="fixed bottom-0 left-0 right-0 bg-[#1A1A1A]/90 backdrop-blur-md border-t border-gray-700 shadow-t-xl z-40"> {/* Adjusted background and border */}
-    <div className="container mx-auto sm:px-0">
-      <div className="flex justify-around items-center h-16">
-        <NavItem to="/" icon={<NewHomeIcon className="w-6 h-6" />} label="Feed" /> {/* Changed to NewHomeIcon */}
-        <NavItem 
-          to="/explore" 
-          icon={<NewExploreIcon className="w-6 h-6" />} 
-          label="Explore" 
-          onClick={() => setCurrentExploreTab('trendingMovies')} // Added onClick handler
-        /> {/* Changed to NewExploreIcon */}
-        <NavItem to="/mylists" icon={<NewListIcon className="w-6 h-6" />} label="My Lists" /> {/* Changed to NewListIcon */}
-        <NavItem to="/profile" icon={<NewUserIcon className="w-6 h-6" />} label="Profile" /> {/* Changed to NewUserIcon */}
+const AppNavigation: React.FC<{ setCurrentExploreTab: (tab: 'trendingMovies' | 'trendingShows' | 'search' | 'forYou' | 'moviesOnly' | 'tvShowsOnly') => void }> = ({ setCurrentExploreTab }) => {
+  const { user, loading } = useAuth(); // Get auth state
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 bg-[#1A1A1A]/90 backdrop-blur-md border-t border-gray-700 shadow-t-xl z-40"> {/* Adjusted background and border */}
+      <div className="container mx-auto sm:px-0">
+        <div className="flex justify-around items-center h-16">
+          <NavItem to="/" icon={<NewHomeIcon className="w-6 h-6" />} label="Feed" /> {/* Changed to NewHomeIcon */}
+          <NavItem 
+            to="/explore" 
+            icon={<NewExploreIcon className="w-6 h-6" />} 
+            label="Explore" 
+            onClick={() => setCurrentExploreTab('trendingMovies')} // Added onClick handler
+          /> {/* Changed to NewExploreIcon */}
+          <NavItem to="/mylists" icon={<NewListIcon className="w-6 h-6" />} label="My Lists" /> {/* Changed to NewListIcon */}
+          {loading ? (
+            <div className="flex flex-col items-center justify-center px-3 py-2.5 text-xs font-medium text-gray-500 w-1/4">
+              <NewUserIcon className="w-6 h-6 animate-pulse" />
+              <span className="mt-1.5">Loading...</span>
+            </div>
+          ) : user ? (
+            <NavItem to="/profile" icon={<NewUserIcon className="w-6 h-6" />} label="Profile" />
+          ) : (
+            <NavItem to="/login" icon={<NewUserIcon className="w-6 h-6" />} label="Login" />
+          )}
+        </div>
       </div>
-    </div>
-  </nav>
-);
+    </nav>
+  );
+}; // Added the closing curly brace and semicolon for the AppNavigation component
 
 interface BasePageProps {
   userListService: typeof userListService; // Add userListService
@@ -1419,34 +1459,67 @@ const FeedPage: React.FC<FeedPageProps> = ({ currentUser }) => {
 // --- Profile Page ---
 const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist }) => {
     const navigate = useNavigate();
-    const weeklyStreak = userListService.calculateWeeklyStreak();
-    const mostRecentRatings = userListService.getRankedList()
-        .sort((a, b) => new Date(b.ratedAt).getTime() - new Date(a.ratedAt).getTime())
-        .slice(0, 5);
+    const { user, signOut, loading: authLoading } = useAuth(); // Renamed loading to authLoading to avoid conflict
 
+    useEffect(() => {
+      if (!authLoading && !user) {
+        navigate('/login');
+      }
+    }, [authLoading, user, navigate]);
+
+    const handleSignOut = async () => {
+      try {
+        await signOut();
+        navigate('/login'); // Redirect to login after sign out
+      } catch (error) {
+        console.error("Error signing out: ", error);
+        // Handle error display to user if necessary
+      }
+    };
+    
     const handleCardClick = (item: MediaItem | RankedItem) => {
         if (item.media_type) navigate(`/media/${item.media_type}/${item.id}`);
     };
     
-    const initials = mockUser.handle.substring(0, 2).toUpperCase();
+    // Show loading spinner while auth state is being determined
+    if (authLoading) {
+      return <LoadingSpinner />;
+    }
+
+    // If still no user after loading, ProfilePage shouldn't render (useEffect will redirect)
+    // This is an additional safeguard or for cases where redirect hasn't happened yet.
+    if (!user) {
+      return null; // Or a message, but redirect is preferred
+    }
+    
+    const initials = user.email?.substring(0, 2).toUpperCase() || '??';
+    const displayName = user.user_metadata?.username || user.email || 'User';
+    const memberSince = user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A';
+
 
     return (
     <div className="space-y-8">
             {/* User Info Header */}
       <div className="flex items-center space-x-4 p-1">
-        {mockUser.avatarUrl ? (
-          <img src={mockUser.avatarUrl} alt={mockUser.handle} className="w-20 h-20 rounded-full object-cover border-2 border-slate-600 shadow-md" />
+        {user.user_metadata?.avatar_url ? (
+          <img src={user.user_metadata.avatar_url} alt={displayName} className="w-20 h-20 rounded-full object-cover border-2 border-slate-600 shadow-md" />
         ) : (
           <div className="w-20 h-20 rounded-full bg-slate-700 flex items-center justify-center text-3xl font-bold text-slate-300 border-2 border-slate-600 shadow-md">
                         {initials}
                     </div>
                 )}
         <div>
-          <h1 className="text-3xl font-bold text-slate-100">{mockUser.handle}</h1>
+          <h1 className="text-3xl font-bold text-slate-100">{displayName}</h1>
           {/* Placeholder for bio or other user info */}
-          <p className="text-sm text-slate-400">Member since Jan 2024 &bull; {seenList.length} items rated</p>
-                </div>
-            </div>
+          <p className="text-sm text-slate-400">Member since {memberSince} &bull; {seenList.length} items rated</p>
+        </div>
+      </div>
+      <button 
+        onClick={handleSignOut} 
+        disabled={authLoading}
+        className="w-full sm:w-auto px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg transition-colors disabled:opacity-70 disabled:cursor-not-allowed mt-4 mb-6 text-sm">
+        {authLoading ? 'Signing out...' : 'Sign Out'}
+      </button>
 
       {/* Stats Section */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
@@ -1459,7 +1532,7 @@ const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist }) => {
           <p className="text-xs text-slate-400 uppercase">On Watchlist</p>
             </div>
         <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-md col-span-2 sm:col-span-1">
-          <p className="text-3xl font-bold ${ACCENT_COLOR_CLASS_TEXT}">{weeklyStreak} Day{weeklyStreak !== 1 ? 's' : ''}</p>
+          <p className="text-3xl font-bold ${ACCENT_COLOR_CLASS_TEXT}">{userListService.calculateWeeklyStreak()} Day{userListService.calculateWeeklyStreak() !== 1 ? 's' : ''}</p>
           <p className="text-xs text-slate-400 uppercase">Rating Streak</p>
                 </div>
             </div>
@@ -1467,15 +1540,12 @@ const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist }) => {
       {/* Recent Activity Section */}
                     <div>
         <h2 className="text-xl font-semibold text-slate-200 mb-3">Recent Activity</h2>
-        {mostRecentRatings.length > 0 ? (
-          <div className="space-y-3">
-                        {mostRecentRatings.map(item => (
-              <RatedMediaCard key={`${item.id}-${item.ratedAt}`} item={item} onClick={handleCardClick} />
-                        ))}
-                    </div>
-        ) : (
-          <p className="text-slate-500 text-center py-5">No ratings yet. Go rate some media!</p>
-        )}
+        {userListService.getRankedList()
+          .sort((a, b) => new Date(b.ratedAt).getTime() - new Date(a.ratedAt).getTime())
+          .slice(0, 5)
+          .map(item => (
+            <RatedMediaCard key={item.id} item={item} onClick={handleCardClick} />
+          ))}
       </div>
 
       {/* Placeholder for Friends Activity, Achievements, etc. */}
