@@ -8,7 +8,7 @@ import {
   PencilIcon, TrashIcon, FilmIcon, TvIcon, RectangleStackIcon, CheckCircleIcon, ArrowUpOnSquareIcon, 
   TrophyIcon, FireIcon, UserIcon as ProfileNavIcon, BookmarkIcon as WantToTryIcon, HeartIcon as RecsIcon, 
   NewHomeIcon, NewExploreIcon, NewListIcon, NewUserIcon, // Added new icons
-  FilterIcon, BookmarkSquareIcon // IMPORT THE NEW FilterIcon and BookmarkSquareIcon
+  FilterIcon, BookmarkSquareIcon, BookmarkIcon // IMPORT THE NEW FilterIcon and BookmarkSquareIcon AND BookmarkIcon for MyListsPage tabs
 } from './icons';
 import TopCategoryNav from './TopCategoryNav'; // Import the new component
 import MediaCarousel from './MediaCarousel'; // ADD MediaCarousel import
@@ -309,8 +309,7 @@ const AppNavigation: React.FC<{ setCurrentExploreTab: (tab: 'trendingMovies' | '
         </div>
       </div>
     </nav>
-  );
-}; // Added the closing curly brace and semicolon for the AppNavigation component
+  )}; // Corrected: ensure this is a curly brace for the function body and a semicolon for the statement.
 
 interface BasePageProps {
   userListService: typeof userListService; // Add userListService
@@ -360,6 +359,25 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
   const [selectedProviderIds, setSelectedProviderIds] = useState<Set<number>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
 
+  // --- BEGIN DIAGNOSTIC LOGGING ---
+  // const renderCount = useRef(0);
+  // const selectedGenreIdsRefForLogging = useRef(selectedGenreIds);
+
+  // useEffect(() => {
+  //   renderCount.current += 1;
+  //   let logMsg = `[ExplorePage] Render ${renderCount.current}. activeTab: ${activeTab}, currentPage: ${currentPage}.`;
+  //   if (selectedGenreIdsRefForLogging.current !== selectedGenreIds) {
+  //     logMsg += " selectedGenreIds REF CHANGED during this render cycle.";
+  //     selectedGenreIdsRefForLogging.current = selectedGenreIds;
+  //   } else {
+  //     logMsg += " selectedGenreIds ref stable this render.";
+  //   }
+  //   console.log(logMsg, "Current selectedGenreIds:", selectedGenreIds);
+  // }); // Log on every render
+
+  // const prevSelectedGenreIdsInEffect = useRef<Set<number> | undefined>(undefined); // Initialized
+  // --- END DIAGNOSTIC LOGGING ---
+  
   const [trendingMoviesResults, setTrendingMoviesResults] = useState<MediaItem[]>([]);
   const [trendingShowsResults, setTrendingShowsResults] = useState<MediaItem[]>([]);
   const [searchQueryResults, setSearchQueryResults] = useState<MediaItem[]>([]);
@@ -399,60 +417,10 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
     }
   };
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage < 1 || newPage > totalPages || isLoading) return; 
-    setCurrentPage(newPage);
-    // fetchMedia will be called by useEffect when currentPage changes if activeTab requires pagination
-    if (activeTab === 'search' && currentQuery) {
-      fetchMedia('search', currentQuery, newPage);
-    } else if (activeTab === 'trendingMovies' || activeTab === 'trendingShows' || activeTab === 'moviesOnly' || activeTab === 'tvShowsOnly') {
-      fetchMedia(activeTab, '', newPage);
-    }
-  };
-
-  const observer = useRef<IntersectionObserver | null>(null);
-  const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
-    if (isLoading) return; if (observer.current) observer.current.disconnect();
-    observer.current = new IntersectionObserver(entries => { if (entries[0].isIntersecting && currentPage < totalPages) handlePageChange(currentPage + 1); });
-    if (node) observer.current.observe(node);
-  }, [isLoading, currentPage, totalPages, handlePageChange]); // Corrected: Added handlePageChange
-
-  useEffect(() => { (async () => { try { const [m, t] = await Promise.all([tmdbService.getMovieGenres(), tmdbService.getTvGenres()]); setMovieGenres(m); setTvGenres(t); } catch (err) { console.error("Failed to fetch genres:", err); } })(); }, []);
-
-  useEffect(() => {
-    const fetchHorizontalData = async () => {
-      setIsLoadingHorizontal(true);
-      setTopTrendingCombined([]); // Clear previous items
-      try {
-        const [moviesData, showsData] = await Promise.all([
-          tmdbService.getTrendingMedia('movie', 'week', 1),
-          tmdbService.getTrendingMedia('tv', 'week', 1)
-        ]);
-
-        if (moviesData && showsData) {
-          const top5Movies = moviesData.results.slice(0, 5);
-          const top5Shows = showsData.results.slice(0, 5);
-          
-          // Interleave movies and shows
-          const combined: MediaItem[] = [];
-          const maxLength = Math.max(top5Movies.length, top5Shows.length);
-          for (let i = 0; i < maxLength; i++) {
-            if (i < top5Movies.length) combined.push(top5Movies[i]);
-            if (i < top5Shows.length) combined.push(top5Shows[i]);
-          }
-          setTopTrendingCombined(combined);
-        }
-      } catch (err) {
-        console.error("Failed to fetch horizontal scroll data:", err);
-      }
-      setIsLoadingHorizontal(false);
-    };
-    fetchHorizontalData();
-  }, []);
-
   const fetchMedia = useCallback(async (tabToFetch: string, query: string, page: number) => {
-    setIsLoading(true); // Ensure loading state is set at the beginning
-    setError(null); // Clear previous errors
+    // console.log('[ExplorePage] fetchMedia memoized/re-created. selectedGenreIds ref changed?', { tabToFetch, query, page, selectedGenreIds });
+    setIsLoading(true);
+    setError(null);
     try {
       let data: TMDBListResponse<MediaItem> | undefined;
       switch (tabToFetch) {
@@ -501,16 +469,39 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
         if (tabToFetch === 'trendingMovies') setTrendingMoviesResults(filteredResults);
         else if (tabToFetch === 'trendingShows') setTrendingShowsResults(filteredResults);
         else if (tabToFetch === 'search') setSearchQueryResults(filteredResults);
-        else if (tabToFetch === 'moviesOnly') setMoviesOnlyResults(filteredResults);
-        else if (tabToFetch === 'tvShowsOnly') setTvShowsOnlyResults(filteredResults);
-        setResults(filteredResults);
+        else if (tabToFetch === 'moviesOnly') {
+          setMoviesOnlyResults(filteredResults); 
+          // DO NOT setResults(filteredResults) for moviesOnly
+        } else if (tabToFetch === 'tvShowsOnly') {
+          setTvShowsOnlyResults(filteredResults);
+          // DO NOT setResults(filteredResults) for tvShowsOnly
+        }
+        // Update generic results ONLY for tabs that might use it directly via displayResults fallback
+        if (tabToFetch === 'trendingMovies' || tabToFetch === 'trendingShows' || tabToFetch === 'search') {
+            setResults(filteredResults);
+        }
       } else {
-        if (tabToFetch === 'trendingMovies') setTrendingMoviesResults(prev => [...prev, ...filteredResults]);
-        else if (tabToFetch === 'trendingShows') setTrendingShowsResults(prev => [...prev, ...filteredResults]);
-        else if (tabToFetch === 'search') setSearchQueryResults(prev => [...prev, ...filteredResults]);
-        else if (tabToFetch === 'moviesOnly') setMoviesOnlyResults(prev => [...prev, ...filteredResults]);
-        else if (tabToFetch === 'tvShowsOnly') setTvShowsOnlyResults(prev => [...prev, ...filteredResults]);
-        setResults(prev => [...prev, ...filteredResults]);
+        // Ensure only unique items are added when paginating
+        const addUnique = (prev: MediaItem[], newItems: MediaItem[]): MediaItem[] => {
+          const existingIds = new Set(prev.map(item => item.id));
+          const newUniqueItems = newItems.filter(item => !existingIds.has(item.id));
+          return [...prev, ...newUniqueItems];
+        };
+
+        if (tabToFetch === 'trendingMovies') setTrendingMoviesResults(prev => addUnique(prev, filteredResults));
+        else if (tabToFetch === 'trendingShows') setTrendingShowsResults(prev => addUnique(prev, filteredResults));
+        else if (tabToFetch === 'search') setSearchQueryResults(prev => addUnique(prev, filteredResults));
+        else if (tabToFetch === 'moviesOnly') {
+            setMoviesOnlyResults(prev => addUnique(prev, filteredResults));
+            // DO NOT setResults(prev => addUnique(prev, filteredResults)) for moviesOnly
+        } else if (tabToFetch === 'tvShowsOnly') {
+            setTvShowsOnlyResults(prev => addUnique(prev, filteredResults));
+            // DO NOT setResults(prev => addUnique(prev, filteredResults)) for tvShowsOnly
+        }
+        // Update generic results ONLY for tabs that might use it directly via displayResults fallback
+        if (tabToFetch === 'trendingMovies' || tabToFetch === 'trendingShows' || tabToFetch === 'search') {
+            setResults(prev => addUnique(prev, filteredResults));
+        }
       }
 
       setTotalPages(data.total_pages || 1);
@@ -524,40 +515,116 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [
-    selectedGenreIds, 
-    setIsLoading, 
-    setError, 
-    setResults, 
-    setTotalPages, 
-    setHasMore, // Added setHasMore to dependency array
-    setTrendingMoviesResults, 
-    setTrendingShowsResults, 
-    setSearchQueryResults, 
-    setMoviesOnlyResults, 
-    setTvShowsOnlyResults
-  ]);
+  }, [selectedGenreIds]); // Corrected dependency array for fetchMedia
+
+  const handlePageChange = useCallback((newPage: number) => {
+    // console.log('[ExplorePage] handlePageChange called.', { newPage, currentPage, totalPages, isLoading, activeTab, currentQuery });
+    if (newPage < 1 || newPage > totalPages || isLoading) return;
+    setCurrentPage(newPage);
+    if (activeTab === 'search' && currentQuery) {
+      fetchMedia('search', currentQuery, newPage);
+    } else if (activeTab === 'trendingMovies' || activeTab === 'trendingShows' || activeTab === 'moviesOnly' || activeTab === 'tvShowsOnly') {
+      fetchMedia(activeTab, '', newPage);
+    }
+  }, [activeTab, currentQuery, totalPages, isLoading, fetchMedia, setCurrentPage]);
+
+  const observer = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
+    if (isLoading) return; if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => { if (entries[0].isIntersecting && currentPage < totalPages) handlePageChange(currentPage + 1); });
+    if (node) observer.current.observe(node);
+  }, [isLoading, currentPage, totalPages, handlePageChange]); // Corrected: Added handlePageChange
+
+  useEffect(() => { (async () => { try { const [m, t] = await Promise.all([tmdbService.getMovieGenres(), tmdbService.getTvGenres()]); setMovieGenres(m); setTvGenres(t); } catch (err) { console.error("Failed to fetch genres:", err); } })(); }, []);
 
   useEffect(() => {
-    setCurrentPage(1); 
-    // Reset specific results arrays too
-    setTrendingMoviesResults([]);
-    setTrendingShowsResults([]);
-    setSearchQueryResults([]);
-    setMoviesOnlyResults([]);
-    setTvShowsOnlyResults([]);
-    setResults([]); // Reset generic results
+    const fetchHorizontalData = async () => {
+      setIsLoadingHorizontal(true);
+      setTopTrendingCombined([]); // Clear previous items
+      try {
+        const [moviesData, showsData] = await Promise.all([
+          tmdbService.getTrendingMedia('movie', 'week', 1),
+          tmdbService.getTrendingMedia('tv', 'week', 1)
+        ]);
 
-    if (activeTab === 'forYou') { 
-      // generateForYouRecommendations is called by its own useEffect based on seenList 
-    } else if (activeTab === 'trendingMovies' || activeTab === 'trendingShows' || activeTab === 'moviesOnly' || activeTab === 'tvShowsOnly') { 
-      fetchMedia(activeTab, '', 1); 
-    } else if (activeTab === 'search') { 
-      if (currentQuery) fetchMedia('search', currentQuery, 1); 
-      else setResults([]); 
+        if (moviesData && showsData) {
+          const top5Movies = moviesData.results.slice(0, 5);
+          const top5Shows = showsData.results.slice(0, 5);
+          
+          // Interleave movies and shows
+          const combined: MediaItem[] = [];
+          const maxLength = Math.max(top5Movies.length, top5Shows.length);
+          for (let i = 0; i < maxLength; i++) {
+            if (i < top5Movies.length) combined.push(top5Movies[i]);
+            if (i < top5Shows.length) combined.push(top5Shows[i]);
+          }
+          setTopTrendingCombined(combined);
+        }
+      } catch (err) {
+        console.error("Failed to fetch horizontal scroll data:", err);
+      }
+      setIsLoadingHorizontal(false);
+    };
+    fetchHorizontalData();
+  }, []);
+
+  useEffect(() => {
+    // --- BEGIN DIAGNOSTIC LOGGING FOR RESET EFFECT ---
+    // const selectedGenreIdsChangedSinceLastEffectRun = prevSelectedGenreIdsInEffect.current !== selectedGenreIds;
+    // console.log(
+    //   '[ExplorePage] Main reset useEffect CHECKING. selectedGenreIds ref changed since last run?', 
+    //   selectedGenreIdsChangedSinceLastEffectRun,
+    //   "Effect\'s current selectedGenreIds:", selectedGenreIds,
+    //   "Effect\'s prev selectedGenreIds:", prevSelectedGenreIdsInEffect.current
+    // );
+
+    if (prevSelectedGenreIdsInEffect.current !== selectedGenreIds || prevActiveTabInEffect.current !== activeTab || prevCurrentQueryInEffect.current !== currentQuery || prevSelectedProviderIdsInEffect.current !== selectedProviderIds) {
+      // console.log('[ExplorePage] Main reset useEffect RUNNING. Dependencies that changed:', {
+      //   activeTabChanged: prevActiveTabInEffect.current !== activeTab,
+      //   currentQueryChanged: prevCurrentQueryInEffect.current !== currentQuery,
+      //   selectedGenreIdsChanged: prevSelectedGenreIdsInEffect.current !== selectedGenreIds,
+      //   selectedProviderIdsChanged: prevSelectedProviderIdsInEffect.current !== selectedProviderIds,
+      // });
+      // console.log('[ExplorePage] Main reset useEffect old deps:', { activeTab: prevActiveTabInEffect.current, currentQuery: prevCurrentQueryInEffect.current, selectedGenreIds: prevSelectedGenreIdsInEffect.current, selectedProviderIds: prevSelectedProviderIdsInEffect.current });
+      // console.log('[ExplorePage] Main reset useEffect new deps:', { activeTab, currentQuery, selectedGenreIds, selectedProviderIds });
+
+
+      // Store current dependencies for next run comparison
+      prevActiveTabInEffect.current = activeTab;
+      prevCurrentQueryInEffect.current = currentQuery;
+      prevSelectedGenreIdsInEffect.current = selectedGenreIds;
+      prevSelectedProviderIdsInEffect.current = selectedProviderIds;
+      // --- END DIAGNOSTIC LOGGING FOR RESET EFFECT ---
+
+      setCurrentPage(1);
+      // Reset specific results arrays too
+      setTrendingMoviesResults([]);
+      setTrendingShowsResults([]);
+      setSearchQueryResults([]);
+      setMoviesOnlyResults([]);
+      setTvShowsOnlyResults([]);
+      setResults([]); // Reset generic results
+
+      if (activeTab === 'forYou') { 
+        // generateForYouRecommendations is called by its own useEffect based on seenList 
+      } else if (activeTab === 'trendingMovies' || activeTab === 'trendingShows' || activeTab === 'moviesOnly' || activeTab === 'tvShowsOnly') { 
+        fetchMedia(activeTab, '', 1); 
+      } else if (activeTab === 'search') { 
+        if (currentQuery) fetchMedia('search', currentQuery, 1); 
+        else setResults([]); 
+      }
+    } else {
+      console.log('[ExplorePage] Main reset useEffect SKIPPED (dependencies did not change reference).');
     }
-  }, [activeTab, fetchMedia, currentQuery, selectedGenreIds, selectedProviderIds]); 
+  }, [activeTab, currentQuery, selectedGenreIds, selectedProviderIds]); // REMOVED fetchMedia from dependencies
   
+  // Refs to store previous values of dependencies for the main reset effect for logging
+  const prevActiveTabInEffect = useRef<typeof activeTab | undefined>(undefined); // Initialized
+  const prevCurrentQueryInEffect = useRef<typeof currentQuery | undefined>(undefined); // Initialized
+  const prevSelectedGenreIdsInEffect = useRef<Set<number> | undefined>(undefined); // Re-add this line that was accidentally removed. It should be after the diagnostic logging section was commented out.
+  const prevSelectedProviderIdsInEffect = useRef<typeof selectedProviderIds | undefined>(undefined); // Initialized
+
+
   useEffect(() => { // Sync activeTab with location state OR prop if it changes
     const tabFromLocation = location.state?.activeTab;
     // If initialTab is explicitly provided and differs, it takes precedence.
@@ -782,7 +849,7 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
 
 
       {/* MoviesOnly View */}
-      {isMoviesOnlyView && !isLoading && !error && (
+      {isMoviesOnlyView && !error && ( // Removed !isLoading from this outer condition
         moviesOnlyResults.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 px-4">
             {moviesOnlyResults.map(item => (
@@ -797,11 +864,13 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
               />
             ))}
         </div>
-        ) : <p className="text-slate-400 text-center py-8">No movies found matching your criteria. Try a different search or adjust filters.</p>
+        ) : (
+          !isLoading && <p className="text-slate-400 text-center py-8">No movies found matching your criteria. Try a different search or adjust filters.</p> // Show "No results" only if NOT loading AND length is 0
+        )
       )}
 
       {/* TVShowsOnly View */}
-      {isTvShowsOnlyView && !isLoading && !error && (
+      {isTvShowsOnlyView && !error && ( // Removed !isLoading from this outer condition
         tvShowsOnlyResults.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 px-4">
             {tvShowsOnlyResults.map(item => (
@@ -816,7 +885,9 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
               />
             ))}
           </div>
-        ) : <p className="text-slate-400 text-center py-8">No TV shows found matching your criteria. Try a different search or adjust filters.</p>
+        ) : (
+          !isLoading && <p className="text-slate-400 text-center py-8">No TV shows found matching your criteria. Try a different search or adjust filters.</p> // Show "No results" only if NOT loading AND length is 0
+        )
       )}
       
       {/* Fallback for general results if specific views aren't active or for tabs like 'trending' if you bring them back as grids */}
@@ -837,14 +908,19 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
       )}
 
       {/* Load More Button/Observer - ensure it uses the correct list based on activeTab */}
-      {!(activeTab === 'forYou') && currentPage < totalPages && !isLoading && (
-        <div ref={loadMoreRef} className="h-10 flex justify-center items-center">
-          <button onClick={() => handlePageChange(currentPage + 1)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg">Load More</button>
+      {!(activeTab === 'forYou') && ( // Simpler condition, always render for paginated tabs
+        <div ref={loadMoreRef} className="h-10 w-full flex items-center justify-center">
+          {!isLoading && currentPage < totalPages && ( // Button only appears if not loading AND there are actually more pages
+            <button onClick={() => handlePageChange(currentPage + 1)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg">Load More</button>
+          )}
+          {isLoading && ( // Show a small spinner here when loading more items
+            <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-slate-500"></div>
+          )}
         </div>
       )}
     </div>
   );
-};
+}; // Add the closing brace and semicolon for ExplorePage
 
 // --- Media Detail Page ---
 const MediaDetailPage: React.FC<BasePageProps> = ({ userListService, onAddToWatchlist, onMarkAsSeen, onAddToList, seenList, watchlist, customLists }) => {
@@ -991,242 +1067,296 @@ const MediaDetailPage: React.FC<BasePageProps> = ({ userListService, onAddToWatc
 interface MyListsPageProps extends BasePageProps { openCreateListModal: () => void; }
 const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRemoveFromWatchlist, openCreateListModal, setCustomLists, seenList: globalSeenList }) => { // Renamed seenList to globalSeenList
   const navigate = useNavigate();
-  const [activeMainTab, setActiveMainTab] = useState<'seen' | 'watchlist' | 'custom'>('seen');
+  const [activeTab, setActiveTab] = useState<'watchlist' | 'ranking' | 'custom'>('watchlist');
   
-  // For 'Seen' tab
-  const [activeSeenSubTab, setActiveSeenSubTab] = useState<'allseen' | 'ranking'>('allseen'); // Default to 'allseen'
-  const [sortOption, setSortOption] = useState('dateRatedDesc'); // Default sort for 'allseen'
+  const [sortOption, setSortOption] = useState<'personalScore_desc' | 'personalScore_asc' | 'ratedAt_desc' | 'ratedAt_asc'>('personalScore_desc');
   const [filterOptions, setFilterOptions] = useState({ mediaType: 'all', reaction: 'all', genre: 'all', runtime: 'all' });
-  const [showFilters, setShowFilters] = useState(false); // State for filter panel visibility
+  const [allGenres, setAllGenres] = useState<TMDBGenre[]>([]);
 
+  const [paginatedRanking, setPaginatedRanking] = useState<RankedItem[]>([]);
+  const [rankingPage, setRankingPage] = useState(1);
+  const rankingItemsPerPage = 15;
+  const rankingLoadMoreRef = useRef(null);
+  const [isLoadingMoreRanking, setIsLoadingMoreRanking] = useState(false);
 
-  const ratedItemsFromSeenList = useMemo(() => {
-    return globalSeenList || []; // Directly use the array, no .items
-  }, [globalSeenList]);
-
-
-  // Generate filter dropdown options based on current ratedItems
-  const filterDropdownOptions = useMemo(() => {
-    const genres = new Set<string>();
-    const runtimes = new Set<string>();
-    ratedItemsFromSeenList.forEach(item => {
-      item.genres?.forEach(g => genres.add(g.name));
-      if (item.runtimeCategory) runtimes.add(item.runtimeCategory);
-    });
-    return {
-      genres: Array.from(genres).sort(),
-      runtimes: Array.from(runtimes).sort((a,b) => { // Sort runtimes meaningfully
-          const order = ['Under 1 hour', '1-2 hours', '2-3 hours', 'Over 3 hours'];
-          return order.indexOf(a) - order.indexOf(b);
-      }),
+  useEffect(() => {
+    const fetchGenres = async () => {
+      const movieGenres = await tmdbService.getMovieGenres();
+      const tvGenres = await tmdbService.getTvGenres();
+      const uniqueGenres = [...movieGenres, ...tvGenres].filter((genre, index, self) => 
+        index === self.findIndex((g) => g.id === genre.id && g.name === genre.name)
+      );
+      setAllGenres(uniqueGenres);
     };
-  }, [ratedItemsFromSeenList]);
-  
+    fetchGenres();
+  }, []);
+
   const handleFilterChange = (type: keyof typeof filterOptions, value: string) => {
     setFilterOptions(prev => ({ ...prev, [type]: value }));
+    setRankingPage(1); 
+    setPaginatedRanking([]); 
   };
 
   const getSortedAndFilteredItems = (
-    items: RatedItem[],
+    items: RankedItem[], // Changed from RatedItem[] to RankedItem[] as this is used for ranking
     sortOption: string,
     filterOptions: { mediaType: string; reaction: string; genre: string; runtime: string; provider?: number }
-  ): RatedItem[] => {
-    let sortedAndFiltered = [...items];
+  ): RankedItem[] => { // Return type is RankedItem[]
+    let processedItems = [...items];
 
-    // Filter
-    if (filterOptions.mediaType && filterOptions.mediaType !== 'all') {
-      sortedAndFiltered = sortedAndFiltered.filter(item => item.media_type === filterOptions.mediaType);
+    if (filterOptions.mediaType !== 'all') {
+      processedItems = processedItems.filter(item => item.media_type === filterOptions.mediaType);
     }
-    if (filterOptions.reaction && filterOptions.reaction !== 'all') {
-      sortedAndFiltered = sortedAndFiltered.filter(item => item.userReaction === filterOptions.reaction);
+    if (filterOptions.reaction !== 'all') {
+      processedItems = processedItems.filter(item => item.userReaction === filterOptions.reaction);
     }
-    if (filterOptions.genre && filterOptions.genre !== 'all') {
-      sortedAndFiltered = sortedAndFiltered.filter(item => item.genres?.some(g => g.name === filterOptions.genre));
+    if (filterOptions.genre !== 'all') {
+      processedItems = processedItems.filter(item => item.genres?.some(g => g.id === parseInt(filterOptions.genre)));
     }
-    if (filterOptions.runtime && filterOptions.runtime !== 'all') {
-      sortedAndFiltered = sortedAndFiltered.filter(item => item.runtimeCategory === filterOptions.runtime);
+    if (filterOptions.runtime !== 'all') {
+      processedItems = processedItems.filter(item => getRuntimeCategory(item) === filterOptions.runtime);
     }
-    // Add provider filter logic here if needed for MyListsPage in the future
 
-    // Sort
     switch (sortOption) {
-      case 'ratingDesc': // Assuming 'ratingDesc' means by personalScore
-        sortedAndFiltered.sort((a, b) => (userListService.getRankedList(b.media_type as 'movie'|'tv', b.userReaction).find(i => i.id === b.id)?.personalScore || 0) - (userListService.getRankedList(a.media_type as 'movie'|'tv', a.userReaction).find(i => i.id === a.id)?.personalScore || 0));
+      case 'personalScore_desc':
+        processedItems.sort((a, b) => (b.personalScore ?? 0) - (a.personalScore ?? 0));
         break;
-      case 'ratingAsc':
-        sortedAndFiltered.sort((a, b) => (userListService.getRankedList(a.media_type as 'movie'|'tv', a.userReaction).find(i => i.id === a.id)?.personalScore || 0) - (userListService.getRankedList(b.media_type as 'movie'|'tv', b.userReaction).find(i => i.id === b.id)?.personalScore || 0));
+      case 'personalScore_asc':
+        processedItems.sort((a, b) => (a.personalScore ?? 0) - (b.personalScore ?? 0));
         break;
-      case 'dateRatedDesc':
-        sortedAndFiltered.sort((a, b) => new Date(b.ratedAt).getTime() - new Date(a.ratedAt).getTime());
+      case 'ratedAt_desc':
+        processedItems.sort((a, b) => new Date(b.ratedAt).getTime() - new Date(a.ratedAt).getTime());
         break;
-      case 'dateRatedAsc':
-        sortedAndFiltered.sort((a, b) => new Date(a.ratedAt).getTime() - new Date(b.ratedAt).getTime());
+      case 'ratedAt_asc':
+        processedItems.sort((a, b) => new Date(a.ratedAt).getTime() - new Date(b.ratedAt).getTime());
         break;
-      case 'titleAsc':
-        sortedAndFiltered.sort((a, b) => (a.title || a.name || '').localeCompare(b.title || b.name || ''));
+      default:
         break;
-      case 'titleDesc':
-        sortedAndFiltered.sort((a, b) => (b.title || b.name || '').localeCompare(a.title || a.name || ''));
-        break;
-      default: // Default to dateRatedDesc if sortOption is unrecognized
-        sortedAndFiltered.sort((a, b) => new Date(b.ratedAt).getTime() - new Date(a.ratedAt).getTime());
     }
-    return sortedAndFiltered;
+    return processedItems;
   };
-
-  const sortedAndFilteredSeenItems = useMemo(() => {
-    if (activeSeenSubTab === 'allseen') {
-      return getSortedAndFilteredItems(ratedItemsFromSeenList, sortOption, filterOptions);
-    }
-    return []; // No filtering/sorting for 'ranking' tab here, it has its own logic
-  }, [ratedItemsFromSeenList, sortOption, filterOptions, activeSeenSubTab]);
-
+  
   const rankedItems = useMemo(() => {
-    if (activeSeenSubTab === 'ranking') {
-      return userListService.getRankedList('all' as any, 'all' as any); // Get all ranked items - cast to any for now
+    const allRankedFromService = userListService.getRankedList('all', 'all');
+    return getSortedAndFilteredItems(allRankedFromService, sortOption, filterOptions);
+  }, [globalSeenList, sortOption, filterOptions]);
+
+  const loadMoreRankingItems = useCallback(() => {
+    if (isLoadingMoreRanking || paginatedRanking.length >= rankedItems.length) return;
+    setIsLoadingMoreRanking(true);
+    const nextPage = rankingPage + 1;
+    const newItems = rankedItems.slice(0, nextPage * rankingItemsPerPage);
+    setPaginatedRanking(newItems);
+    setRankingPage(nextPage);
+    setIsLoadingMoreRanking(false);
+  }, [isLoadingMoreRanking, paginatedRanking.length, rankedItems, rankingPage, rankingItemsPerPage]);
+
+  useEffect(() => {
+    setPaginatedRanking(rankedItems.slice(0, rankingPage * rankingItemsPerPage));
+  }, [rankedItems, rankingPage, rankingItemsPerPage]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && !isLoadingMoreRanking && paginatedRanking.length < rankedItems.length) {
+          loadMoreRankingItems();
+        }
+      },
+      { threshold: 1.0 }
+    );
+    const currentRef = rankingLoadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
     }
-    return [];
-  }, [activeSeenSubTab]);
-
-  const generateStats = (ratedItems: RatedItem[]) => {
-    const stats = {
-      totalRated: ratedItems.length,
-      moviesRated: ratedItems.filter(item => item.media_type === 'movie').length,
-      showsRated: ratedItems.filter(item => item.media_type === 'tv').length,
-      loved: ratedItems.filter(item => item.userReaction === Reaction.Liked).length,
-      fine: ratedItems.filter(item => item.userReaction === Reaction.Fine).length,
-      notForMe: ratedItems.filter(item => item.userReaction === Reaction.Disliked).length,
-      genreCounts: {} as Record<string, number>,
-      runtimeCounts: {} as Record<string, number>,
-      averageScore: 0, // Placeholder for future score system
-    };
-
-    let totalScoreSum = 0;
-    let scoredItemsCount = 0;
-
-    ratedItems.forEach(item => {
-      item.genres?.forEach(genre => {
-        stats.genreCounts[genre.name] = (stats.genreCounts[genre.name] || 0) + 1;
-      });
-      if (item.runtimeCategory) {
-        stats.runtimeCounts[item.runtimeCategory] = (stats.runtimeCounts[item.runtimeCategory] || 0) + 1;
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
       }
-      // Placeholder: if a numerical score existed on RatedItem
-      // if (typeof item.personalScore === 'number') {
-      //   totalScoreSum += item.personalScore;
-      //   scoredItemsCount++;
-      // }
-    });
-    // stats.averageScore = scoredItemsCount > 0 ? parseFloat((totalScoreSum / scoredItemsCount).toFixed(1)) : 0;
-    return stats;
+    };
+  }, [loadMoreRankingItems, isLoadingMoreRanking, paginatedRanking, rankedItems]);
+
+  const generateStats = (items: (RatedItem | WatchlistItem | RankedItem)[]) => {
+    if (!items || items.length === 0) return { total: 0, movies: 0, shows: 0, averageScore: 0, byReaction: {} };
+    const total = items.length;
+    const movies = items.filter(i => i.media_type === 'movie').length;
+    const shows = items.filter(i => i.media_type === 'tv').length;
+    
+    const ratedItemsForScore = items.filter(item => typeof (item as RankedItem).personalScore === 'number') as RankedItem[];
+    const totalScore = ratedItemsForScore.reduce((acc, item) => acc + (item.personalScore || 0), 0);
+    const averageScore = ratedItemsForScore.length > 0 ? parseFloat((totalScore / ratedItemsForScore.length).toFixed(1)) : 0;
+
+    const byReaction = items.reduce((acc, item) => {
+      if ('userReaction' in item && item.userReaction) {
+        const reaction = item.userReaction as Reaction;
+        acc[reaction] = (acc[reaction] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<Reaction, number>);
+    return { total, movies, shows, averageScore, byReaction };
   };
+  
+  const watchlistStats = generateStats(watchlist);
+  const rankingStats = generateStats(rankedItems);
 
   const handleCardClick = (item: MediaItem | RankedItem | PersonCreditItem) => {
-    if (item.media_type === 'movie' || item.media_type === 'tv') {
-      navigate(`/media/${item.media_type as 'movie' | 'tv'}/${item.id}`);
-    } else if (item.media_type === 'person') {
-      navigate(`/person/${item.id}`);
+    if ('media_type' in item && item.media_type && (item.media_type === 'movie' || item.media_type === 'tv')) {
+      navigate(`/media/${item.media_type}/${item.id}`);
     }
   };
+
   const handleCustomListClick = (listId: string) => navigate(`/mylists/${listId}`);
   const handleDeleteCustomList = (listId: string) => { if(window.confirm("Are you sure you want to delete this list?")) setCustomLists(userListService.deleteCustomList(listId)); };
+  
+  const TABS = [
+    { id: 'watchlist', label: 'Watchlist', icon: <BookmarkIcon className="w-5 h-5 mr-2" /> },
+    { id: 'ranking', label: 'My Seen Ranking', icon: <TrophyIcon className="w-5 h-5 mr-2" /> },
+    { id: 'custom', label: 'Custom Lists', icon: <RectangleStackIcon className="w-5 h-5 mr-2" /> },
+  ];
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'watchlist':
+        return (
+          <div className="space-y-4">
+            {watchlist.length > 0 ? watchlist.map(item => (
+              <div key={`${item.id}-${item.media_type}`} className="flex items-center bg-slate-800 p-3 rounded-xl shadow-lg border border-slate-700">
+                <PosterImage path={item.poster_path} alt={item.title || item.name || "Poster"} className="w-16 h-24 object-cover rounded-md mr-4 flex-shrink-0" />
+                <div className="flex-grow min-w-0">
+                  <h3 className="text-md font-semibold text-slate-100 truncate cursor-pointer hover:text-cyan-400" onClick={() => handleCardClick(item)} role="button">{item.title || item.name}</h3>
+                  <p className="text-xs text-slate-400">{item.media_type === 'movie' ? 'Movie' : 'TV Show'} &bull; Added: {new Date(item.addedAt).toLocaleDateString()}</p>
+                  <p className="text-xs text-slate-300 mt-1 line-clamp-2">{item.overview}</p>
+                </div>
+                <button onClick={() => onRemoveFromWatchlist(item.id, item.media_type as 'movie'|'tv')} className="ml-3 p-2 text-red-500 hover:text-red-400 transition-colors rounded-md hover:bg-slate-700 flex-shrink-0">
+                  <TrashIcon className="w-5 h-5" />
+                </button>
+              </div>
+            )) : <p className="text-slate-400 text-center py-8">Your watchlist is empty. Add some movies or shows!</p>}
+          </div>
+        );
+      case 'ranking':
+        return (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-slate-800/50 rounded-xl border border-slate-700">
+              <div>
+                <label htmlFor="sortOption" className="block text-xs font-medium text-slate-400 mb-1">Sort By</label>
+                <select id="sortOption" value={sortOption} onChange={e => setSortOption(e.target.value as typeof sortOption)} className="w-full p-2 bg-slate-700 text-slate-200 rounded-md border border-slate-600 text-sm focus:ring-1 focus:ring-cyan-500">
+                  <option value="personalScore_desc">Score: High to Low</option>
+                  <option value="personalScore_asc">Score: Low to High</option>
+                  <option value="ratedAt_desc">Date Rated: Newest</option>
+                  <option value="ratedAt_asc">Date Rated: Oldest</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="mediaTypeFilter" className="block text-xs font-medium text-slate-400 mb-1">Media Type</label>
+                <select id="mediaTypeFilter" value={filterOptions.mediaType} onChange={e => handleFilterChange('mediaType', e.target.value)} className="w-full p-2 bg-slate-700 text-slate-200 rounded-md border border-slate-600 text-sm focus:ring-1 focus:ring-cyan-500">
+                  <option value="all">All</option>
+                  <option value="movie">Movies</option>
+                  <option value="tv">TV Shows</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="reactionFilter" className="block text-xs font-medium text-slate-400 mb-1">Your Reaction</label>
+                <select id="reactionFilter" value={filterOptions.reaction} onChange={e => handleFilterChange('reaction', e.target.value)} className="w-full p-2 bg-slate-700 text-slate-200 rounded-md border border-slate-600 text-sm focus:ring-1 focus:ring-cyan-500">
+                  <option value="all">All Reactions</option>
+                  {Object.values(Reaction).map(r => <option key={r} value={r}>{REACTION_LABELS[r]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="genreFilter" className="block text-xs font-medium text-slate-400 mb-1">Genre</label>
+                <select id="genreFilter" value={filterOptions.genre} onChange={e => handleFilterChange('genre', e.target.value)} className="w-full p-2 bg-slate-700 text-slate-200 rounded-md border border-slate-600 text-sm focus:ring-1 focus:ring-cyan-500">
+                  <option value="all">All Genres</option>
+                  {allGenres.map(genre => <option key={genre.id} value={genre.id.toString()}>{genre.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700"><p className={`text-xl font-bold ${ACCENT_COLOR_CLASS_TEXT}`}>{rankingStats.total}</p><p className="text-xs text-slate-400">Total Rated</p></div>
+                <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700"><p className={`text-xl font-bold ${ACCENT_COLOR_CLASS_TEXT}`}>{rankingStats.movies}</p><p className="text-xs text-slate-400">Movies</p></div>
+                <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700"><p className={`text-xl font-bold ${ACCENT_COLOR_CLASS_TEXT}`}>{rankingStats.shows}</p><p className="text-xs text-slate-400">TV Shows</p></div>
+                <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700"><p className={`text-xl font-bold ${ACCENT_COLOR_CLASS_TEXT}`}>{rankingStats.averageScore || 'N/A'}</p><p className="text-xs text-slate-400">Avg. Score</p></div>
+            </div>
+
+            {paginatedRanking.length > 0 ? (
+              <div className="space-y-4">
+                {paginatedRanking.map((item) => (
+                  <RatedMediaCard key={`${item.id}-${item.media_type}-${item.userReaction}`} item={item} onClick={() => handleCardClick(item)} />
+                ))}
+                {paginatedRanking.length < rankedItems.length && (
+                   <div ref={rankingLoadMoreRef} className="flex justify-center py-4">
+                    {isLoadingMoreRanking ? <LoadingSpinner /> : <button onClick={loadMoreRankingItems} className="text-cyan-400 hover:text-cyan-300 font-medium">Load More</button>}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-slate-400 text-center py-8">No items match your current filters, or you haven't rated anything yet.</p>
+            )}
+          </div>
+        );
+      case 'custom':
+        return (
+          <div className="space-y-5">
+            <button onClick={openCreateListModal} className={`w-full flex items-center justify-center py-3 px-4 ${ACCENT_COLOR_CLASS_BG} ${ACCENT_COLOR_CLASS_BG_HOVER} text-white font-semibold rounded-lg transition-colors`}>
+              <PlusCircleIcon className="w-5 h-5 mr-2" /> Create New List
+            </button>
+            {customLists.length > 0 ? customLists.map(list => (
+              <div key={list.id} className="bg-slate-800 p-4 rounded-xl shadow-lg border border-slate-700 hover:border-slate-600 transition-colors">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 onClick={() => handleCustomListClick(list.id)} className="text-lg font-semibold text-slate-100 hover:text-cyan-400 cursor-pointer inline-block">{list.name}</h3>
+                    {list.description && <p className="text-xs text-slate-400 mt-0.5">{list.description}</p>}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button onClick={() => navigate(`/mylists/${list.id}?edit=true`)} className="p-1.5 text-slate-400 hover:text-cyan-400 transition-colors rounded-md hover:bg-slate-700"><PencilIcon className="w-4 h-4"/></button>
+                    <button onClick={() => handleDeleteCustomList(list.id)} className="p-1.5 text-red-500 hover:text-red-400 transition-colors rounded-md hover:bg-slate-700"><TrashIcon className="w-4 h-4"/></button>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500">
+                  {list.items.length} item{list.items.length !== 1 ? 's' : ''} &bull; 
+                  Last updated: {new Date(list.updatedAt).toLocaleDateString()}
+                </p>
+                {list.items.length > 0 && (
+                  <div className="mt-3 flex -space-x-3 overflow-hidden">
+                    {list.items.slice(0, 5).map(item => (
+                       <div key={`${item.id}-${item.media_type}`} className="w-10 h-14 rounded border-2 border-slate-700 overflow-hidden flex-shrink-0 bg-slate-700">
+                         <PosterImage path={item.poster_path} alt={item.title || item.name || ""} className="w-full h-full object-cover"/>
+                       </div>
+                    ))}
+                    {list.items.length > 5 && <span className="flex items-center justify-center w-10 h-14 rounded-full bg-slate-600 text-xs text-slate-300 border-2 border-slate-700 z-10">+{list.items.length - 5}</span>}
+                  </div>
+                )}
+              </div>
+            )) : <p className="text-slate-400 text-center py-8">You haven't created any custom lists yet.</p>}
+          </div>
+        );
+      default: return null;
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex space-x-1 border-b border-slate-700 pb-1 mb-3 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
-        {/* Updated tabs array to remove individual reaction tabs */}
-        {(['watchlist', 'allseen', 'custom'] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveMainTab(tab === 'allseen' ? 'seen' : tab as 'watchlist' | 'custom')}
-            className={`py-2.5 px-3.5 text-xs sm:text-sm font-medium whitespace-nowrap rounded-t-lg transition-colors ${activeMainTab === (tab === 'allseen' ? 'seen' : tab) ? `border-b-2 ${ACCENT_COLOR_CLASS_BORDER} ${ACCENT_COLOR_CLASS_TEXT}` : 'text-slate-400 hover:text-slate-200 hover:border-b-2 border-slate-600'}`}>
-            {tab === 'watchlist' ? 'Watchlist' : tab === 'allseen' ? 'Ranking' : 'Custom Lists'} {/* Changed 'All Rated' to 'Ranking' */}
-          </button>
-        ))}
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">My Lists</h1>
       </div>
-      {activeMainTab !== 'custom' && (<div className="flex justify-start sm:justify-start items-center gap-2 mb-6 px-1">
-        <select id="mediaTypeFilter" value={filterOptions.mediaType} onChange={(e) => handleFilterChange('mediaType', e.target.value)}
-            className={`p-2.5 bg-slate-700 text-slate-200 rounded-lg border border-slate-600 focus:ring-2 ${ACCENT_COLOR_CLASS_RING} ${ACCENT_COLOR_CLASS_BORDER} outline-none text-sm transition-colors w-auto sm:w-48`} aria-label="Filter by media type">
-            <option value="tv">TV Shows</option><option value="movie">Movies</option><option value="all">All Media</option>
-        </select></div>
-      )}
-      <div className="flex justify-between items-center -mt-1 mb-5">
-        <h2 className="text-2xl md:text-3xl font-semibold text-slate-100">{activeMainTab === 'watchlist' ? "My Watchlist" : activeMainTab === 'seen' ? "All My Rated Items" : "My Custom Lists"}</h2>
-        {activeMainTab === 'custom' && <button onClick={openCreateListModal} className={`flex items-center px-4 py-2 ${ACCENT_COLOR_CLASS_BG} ${ACCENT_COLOR_CLASS_BG_HOVER} text-white text-sm font-semibold rounded-lg shadow-md`}><PlusCircleIcon className="w-5 h-5 mr-2"/>Create New List</button>}
+
+      <div className="border-b border-slate-700">
+        <nav className="-mb-px flex space-x-1 sm:space-x-3" aria-label="Tabs">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as 'watchlist' | 'ranking' | 'custom')}
+              className={`whitespace-nowrap py-3 px-2 sm:px-4 border-b-2 font-medium text-sm flex items-center transition-colors
+                ${activeTab === tab.id
+                  ? `${ACCENT_COLOR_CLASS_BORDER} ${ACCENT_COLOR_CLASS_TEXT}`
+                  : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-500'
+                }`}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </nav>
       </div>
-      {activeMainTab === 'seen' && (
-        <div className="space-y-4">
-          <div className="flex space-x-1 border-b border-slate-700 pb-1 mb-3 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
-            {['allseen', 'ranking'].map(subTab => (
-              <button key={subTab} onClick={() => setActiveSeenSubTab(subTab as 'allseen' | 'ranking')}
-                className={`py-2.5 px-3.5 text-xs sm:text-sm font-medium whitespace-nowrap rounded-t-lg transition-colors ${activeSeenSubTab === subTab ? `border-b-2 ${ACCENT_COLOR_CLASS_BORDER} ${ACCENT_COLOR_CLASS_TEXT}` : 'text-slate-400 hover:text-slate-200 hover:border-b-2 border-slate-600'}`}>
-                {subTab === 'allseen' ? 'All Seen' : 'Ranking'}
-              </button>
-            ))}
-          </div>
-          {activeSeenSubTab === 'allseen' && (
-            <div className="space-y-4">
-              {/* Render seen list items */}
-              {sortedAndFilteredSeenItems.map(item => (
-                <RatedMediaCard key={`${item.id}-${item.ratedAt}`} item={item as RankedItem} onClick={() => handleCardClick(item)} />
-              ))}
-            </div>
-          )}
-          {activeSeenSubTab === 'ranking' && (
-            <div className="space-y-4">
-              {/* Render ranked items */}
-              {rankedItems.map(item => (
-                <RatedMediaCard key={item.id} item={item} onClick={() => handleCardClick(item)} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-      {activeMainTab === 'watchlist' && (
-        <div className="space-y-4">
-          {watchlist.map(item => (
-            <div key={`${(item as WatchlistItem).id}-${(item as WatchlistItem).media_type}`} className="bg-slate-800 rounded-xl shadow-lg p-4 flex justify-between items-center hover:bg-slate-700/70 transition-colors border border-slate-700">
-                <div onClick={() => handleCardClick(item as WatchlistItem)} className="cursor-pointer flex-grow mr-3 min-w-0"><h3 className="font-semibold text-slate-100 truncate">{(item as WatchlistItem).title || (item as WatchlistItem).name}</h3><p className="text-xs text-slate-400">Added: {new Date((item as WatchlistItem).addedAt).toLocaleDateString()}</p></div>
-              <button onClick={() => { 
-                const watchlistItem = item as WatchlistItem;
-                if(watchlistItem.media_type && watchlistItem.media_type !== 'person') { 
-                  onRemoveFromWatchlist(watchlistItem.id, watchlistItem.media_type as 'movie' | 'tv');
-                }
-              }} 
-              className="p-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-md transition-colors flex-shrink-0 font-medium" 
-              disabled={!(item as WatchlistItem).media_type || (item as WatchlistItem).media_type === 'person'} 
-              aria-label={`Remove ${(item as WatchlistItem).title || (item as WatchlistItem).name} from watchlist`}>Remove</button>
-              </div>
-          ))}
-        </div>
-      )}
-      {activeMainTab === 'custom' && (
-        <div className="space-y-4">
-          {customLists.map(list => (
-            <div key={(list as CustomList).id} className="bg-slate-800 rounded-xl shadow-lg p-4 border border-slate-700 hover:border-cyan-500 transition-colors">
-                    <div className="flex justify-between items-start">
-                    <div onClick={() => handleCustomListClick((list as CustomList).id)} className="cursor-pointer flex-grow mr-3 min-w-0">
-                        <h3 className="text-lg font-semibold text-slate-100 hover:text-cyan-400">{(list as CustomList).name}</h3>
-                        <p className="text-xs text-slate-400">{(list as CustomList).items.length} item(s) &bull; Updated: {new Date((list as CustomList).updatedAt).toLocaleDateString()}</p>
-                        {(list as CustomList).description && <p className="text-sm text-slate-300 mt-1 line-clamp-2">{(list as CustomList).description}</p>}
-                        </div>
-                        <div className="flex-shrink-0 space-x-2">
-                        <button onClick={() => navigate(`/mylists/${(list as CustomList).id}?edit=true`)} className="p-1.5 text-slate-400 hover:text-cyan-400 rounded-md hover:bg-slate-700"><PencilIcon className="w-4 h-4"/></button>
-                        <button onClick={() => handleDeleteCustomList((list as CustomList).id)} className="p-1.5 text-red-500 hover:text-red-400 rounded-md hover:bg-slate-700"><TrashIcon className="w-4 h-4"/></button>
-                        </div>
-                    </div>
-                     {/* Mini preview of first few items */}
-                {(list as CustomList).items.length > 0 && (
-                        <div className="mt-3 flex -space-x-3 overflow-hidden pl-1">
-                        {(list as CustomList).items.slice(0,5).map(media => (
-                            <img key={media.id} src={tmdbService.getImageUrl(media.poster_path) || undefined} alt={media.title || media.name} // Pass undefined if getImageUrl is null/empty
-                                     className="inline-block h-10 w-7 rounded-sm ring-2 ring-slate-800 object-cover" />
-                            ))}
-                        {(list as CustomList).items.length > 5 && <span className="flex items-center justify-center h-10 w-7 rounded-sm ring-2 ring-slate-800 bg-slate-700 text-xs text-slate-300 font-medium">+{ (list as CustomList).items.length - 5}</span>}
-                        </div>
-                    )}
-                </div>
-          ))}
-        </div>
-      )}
+      
+      <div>{renderTabContent()}</div>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { MediaItem, PersonCreditItem } from './types';
 import { MediaCard } from './components'; // Assuming MediaCard is in components.tsx
 import { useNavigate } from 'react-router-dom';
@@ -37,6 +37,7 @@ const MediaCarousel: React.FC<MediaCarouselProps> = ({
   const isSwipingRef = useRef(false);
   const canScrollWithWheelRef = useRef(true); // Ref for wheel scroll debounce
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Ref for the timeout
+  const carouselRef = useRef<HTMLDivElement>(null); // Ref for the carousel div
 
   const handleDefaultItemClick = (item: MediaItem | PersonCreditItem) => {
     if (item.media_type) {
@@ -91,7 +92,7 @@ const MediaCarousel: React.FC<MediaCarouselProps> = ({
     touchEndXRef.current = null;
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
+  const handleWheel = useCallback((e: WheelEvent) => { // Changed e type to WheelEvent
     // Prioritize horizontal scrolling for the carousel
     if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > WHEEL_THRESHOLD / 2) {
       e.preventDefault(); // Prevent default page scroll if horizontal movement is dominant and significant
@@ -113,7 +114,18 @@ const MediaCarousel: React.FC<MediaCarouselProps> = ({
         }
       }
     } // If predominantly vertical scroll, or minor scroll, let the browser handle it (page scroll)
-  };
+  }, [goToNext, goToPrevious]); // Added dependencies
+
+  useEffect(() => {
+    const carouselElement = carouselRef.current;
+    if (carouselElement) {
+      const wheelListener = (e: Event) => handleWheel(e as WheelEvent); // Cast to WheelEvent
+      carouselElement.addEventListener('wheel', wheelListener, { passive: false });
+      return () => {
+        carouselElement.removeEventListener('wheel', wheelListener);
+      };
+    }
+  }, [handleWheel]); // Add handleWheel to dependencies
 
   // Calculate the offset to center the current item
   // This assumes each item has roughly the same visible width on screen.
@@ -136,7 +148,8 @@ const MediaCarousel: React.FC<MediaCarouselProps> = ({
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          onWheel={handleWheel}
+          // onWheel={handleWheel} <--- REMOVED THIS LINE
+          ref={carouselRef} // Added ref here
         >
           {items.map((item) => (
             <div 

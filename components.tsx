@@ -57,7 +57,11 @@ export const PosterImage: React.FC<PosterImageProps> = ({ path, alt, className, 
       </div>
     );
   }
-  return <img src={imageUrl} alt={alt} className={`object-cover ${className?.includes('rounded-') ? '' : 'rounded-lg'} ${className}`} />;
+  return <img 
+    src={imageUrl} 
+    alt={alt} 
+    className={`object-cover ${className?.includes('rounded-') ? '' : 'rounded-lg'} ${className} transition-opacity duration-500 ease-in-out ${loaded && !error ? 'opacity-100' : 'opacity-0'}`} 
+  />;
 };
 
 // --- Media Card ---
@@ -168,6 +172,9 @@ export const RatedMediaCard: React.FC<RatedMediaCardProps> = ({ item, onClick })
   const title = item.title || item.name || 'Untitled';
   const releaseYear = item.release_date?.substring(0,4) || item.first_air_date?.substring(0,4) || '';
 
+  // Use personalScore directly, ensure it's a number, default to 0 if not.
+  const displayScore = typeof item.personalScore === 'number' ? item.personalScore : 0;
+
   return (
     <div 
       className={`flex bg-slate-800 rounded-xl shadow-lg overflow-hidden hover:bg-slate-700/70 transition-colors duration-200 cursor-pointer border border-slate-700 hover:${ACCENT_COLOR_CLASS_BORDER}`}
@@ -188,7 +195,7 @@ export const RatedMediaCard: React.FC<RatedMediaCardProps> = ({ item, onClick })
                       w-10 h-10 md:w-11 md:h-11 rounded-full border-2 ${ACCENT_COLOR_CLASS_BORDER} 
                       flex items-center justify-center flex-shrink-0`}
         >
-          <p className={`text-sm md:text-base font-semibold ${ACCENT_COLOR_CLASS_TEXT}`}>{item.personalScore.toFixed(1)}</p>
+          <p className={`text-sm md:text-base font-semibold ${ACCENT_COLOR_CLASS_TEXT}`}>{displayScore.toFixed(1)}</p>
         </div>
         <div className="mt-3">
           {item.userNotes && 

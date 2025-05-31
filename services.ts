@@ -92,7 +92,7 @@ export const tmdbService = {
                           (detailedItem.media_type === 'movie' && typeof detailedItem.runtime !== 'number') ||
                           (detailedItem.media_type === 'tv' && (!detailedItem.episode_run_time || detailedItem.episode_run_time.length === 0));
 
-    if (needsFetching && detailedItem.media_type) {
+    if (needsFetching && (detailedItem.media_type === 'movie' || detailedItem.media_type === 'tv')) {
         try {
           const fetchedDetails = await tmdbService.getMediaDetails(detailedItem.id, detailedItem.media_type);
           detailedItem = { ...detailedItem, ...fetchedDetails };
@@ -346,17 +346,19 @@ export const userListService = {
     return newGlobalSeenList;
   },
 
-  getRankedList: (mediaType?: 'movie' | 'tv', reactionForBucket?: Reaction): RankedItem[] => {
-    let itemsToRank = userListService.getSeenList();
+  getRankedList: (mediaType: 'movie' | 'tv' | 'all' = 'all', reaction: Reaction | 'all' = 'all'): RankedItem[] => {
+    const allRatedItems = userListService.getSeenList();
+    console.log('[userListService.getRankedList] Initial allRatedItems from getSeenList():', JSON.parse(JSON.stringify(allRatedItems)));
 
-    if (mediaType) {
-      itemsToRank = itemsToRank.filter(i => i.media_type === mediaType);
+    let filteredItems = allRatedItems;
+    if (mediaType !== 'all') {
+      filteredItems = filteredItems.filter(i => i.media_type === mediaType);
     }
-    if (reactionForBucket) {
-      itemsToRank = itemsToRank.filter(i => i.userReaction === reactionForBucket);
+    if (reaction !== 'all') {
+      filteredItems = filteredItems.filter(i => i.userReaction === reaction);
     }
 
-    return itemsToRank.map((item, indexInFilteredList) => {
+    return filteredItems.map((item, indexInFilteredList) => {
       const itemsInActualReactionAndTypeBucket = userListService.getSeenList().filter(
         i => i.userReaction === item.userReaction && i.media_type === item.media_type
       );
@@ -364,9 +366,9 @@ export const userListService = {
       const rankInSpecificBucket = itemsInActualReactionAndTypeBucket.findIndex(i => i.id === item.id && i.media_type === item.media_type);
       
       return {
-        ...item,
-        rank: indexInFilteredList, 
-        personalScore: calculatePersonalScore(
+        ...(item as unknown as RankedItem),
+        rank: indexInFilteredList,
+        personalScore: userListService.calculatePersonalScore(
           rankInSpecificBucket, 
           itemsInActualReactionAndTypeBucket.length, 
           item.userReaction
