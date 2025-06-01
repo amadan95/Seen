@@ -1105,68 +1105,79 @@ const MediaDetailPage: React.FC<BasePageProps> = ({ userListService, onAddToWatc
   const seenInfo = item.media_type && item.media_type !== 'person' ? userListService.isSeen(item.id, item.media_type) : undefined;
 
   return (
-    <div className="space-y-8 relative"> {/* Added relative positioning for the back button */}
-      {/* Back Button */}
-      {window.history.length > 1 && (
-        <button
-          onClick={() => navigate(-1)}
-          className="absolute top-0 left-0 z-20 flex items-center p-2 bg-slate-800/70 hover:bg-slate-700/90 text-slate-200 rounded-full shadow-lg transition-colors mt-0 ml-0"
-          aria-label="Go back"
-          title="Go back"
-        >
-          <ChevronLeftIcon className="w-6 h-6" />
-        </button>
+    <div className="animate-fadeIn">
+      <button 
+        onClick={() => navigate(-1)} 
+        className={`fixed top-4 left-4 z-20 p-2 bg-black/50 hover:bg-black/80 rounded-full transition-colors text-white`}
+        aria-label="Go back"
+      >
+        <ChevronLeftIcon className="w-6 h-6" />
+      </button>
+
+      {/* Backdrop Image with Gradient Overlay */}
+      {item.backdrop_path && (
+        <div className="relative h-[30vh] sm:h-[40vh] md:h-[50vh] lg:h-[60vh] -mx-3 sm:-mx-4 -mt-5 sm:-mt-6">
+          <img 
+            src={`${TMDB_IMAGE_BASE_URL_ORIGINAL}${item.backdrop_path}`} 
+            alt={`Backdrop for ${title}`} 
+            className="w-full h-full object-cover" 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-transparent"></div> {/* Gradient overlay */}
+        </div>
       )}
 
-      {item.backdrop_path && (<div className="relative h-56 md:h-96 -mx-3 sm:-mx-4 -mt-5 sm:-mt-6 rounded-b-xl overflow-hidden shadow-xl"><img src={`${TMDB_IMAGE_BASE_URL_ORIGINAL}${item.backdrop_path}`} alt={`${title} backdrop`} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent"></div></div>)}
-      <div className={`flex flex-col md:flex-row gap-6 md:gap-8 ${item.backdrop_path ? 'md:-mt-32 relative z-10' : ''}`}>
-        <div className="w-1/2 md:w-1/3 lg:w-1/4 mx-auto md:mx-0 flex-shrink-0"><PosterImage path={item.poster_path} alt={title || "Poster"} className="rounded-xl shadow-2xl aspect-[2/3]" /></div>
-        <div className="flex-grow space-y-3.5 text-center md:text-left pt-2">
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-slate-50">{title}</h1>
-          <p className="text-slate-400 text-sm md:text-base">{releaseYear} &bull; {genresText} {runtime && `• ${runtime} min${item.media_type === 'tv' ? '/ep' : ''}`}</p>
-          {item.original_language && <p className="text-slate-400 text-xs">Language: {item.original_language.toUpperCase()}</p>}
-          {item.vote_average > 0 && (<div className="flex items-center justify-center md:justify-start text-sm text-slate-300"><StarIcon className="w-5 h-5 text-yellow-400 mr-1.5" /><span>{item.vote_average.toFixed(1)}/10 (TMDB)</span></div>)}
-          <div className="flex flex-col sm:flex-row gap-3.5 justify-center md:justify-start pt-3">
-            {!seenInfo && (<button onClick={() => onAddToWatchlist(item)} className={`flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-lg ${isCurrentlyWatchlisted ? 'bg-green-600 hover:bg-green-700' : `${ACCENT_COLOR_CLASS_BG} ${ACCENT_COLOR_CLASS_BG_HOVER}`} text-white transform hover:scale-105`}><AddIconAction className="w-5 h-5 mr-2"/> {isCurrentlyWatchlisted ? 'On Watchlist' : 'Add to Watchlist'}</button>)}
-            <button onClick={() => onMarkAsSeen(item)} className={`flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-lg ${seenInfo ? 'bg-purple-600 hover:bg-purple-700' : 'bg-teal-600 hover:bg-teal-700'} text-white transform hover:scale-105`}><SeenIconAction className="w-5 h-5 mr-2"/> {seenInfo ? `Rated ${REACTION_EMOJIS[seenInfo.userReaction]}` : 'Mark as Seen'}</button>
-            <button onClick={() => onAddToList(item)} className={`flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-lg bg-blue-600 hover:bg-blue-700 text-white transform hover:scale-105`}><ListBulletIcon className="w-5 h-5 mr-2"/>Add to List</button>
+      {/* Main Content Area */}
+      <div className={`p-4 ${item.backdrop_path ? 'relative -mt-16 sm:-mt-24 md:-mt-32 z-10' : 'pt-10'}`}>
+        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 md:gap-8">
+          {/* Poster Image */}
+          <div className="w-1/2 md:w-1/3 lg:w-1/4 mx-auto md:mx-0 flex-shrink-0"><PosterImage path={item.poster_path} alt={title || "Poster"} className="rounded-xl shadow-2xl aspect-[2/3]" /></div>
+          <div className="flex-grow space-y-3.5 text-center md:text-left pt-2">
+            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-slate-50">{title}</h1>
+            <p className="text-slate-400 text-sm md:text-base">{releaseYear} &bull; {genresText} {runtime && `• ${runtime} min${item.media_type === 'tv' ? '/ep' : ''}`}</p>
+            {item.original_language && <p className="text-slate-400 text-xs">Language: {item.original_language.toUpperCase()}</p>}
+            {item.vote_average > 0 && (<div className="flex items-center justify-center md:justify-start text-sm text-slate-300"><StarIcon className="w-5 h-5 text-yellow-400 mr-1.5" /><span>{item.vote_average.toFixed(1)}/10 (TMDB)</span></div>)}
+            <div className="flex flex-col sm:flex-row gap-3.5 justify-center md:justify-start pt-3">
+              {!seenInfo && (<button onClick={() => onAddToWatchlist(item)} className={`flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-lg ${isCurrentlyWatchlisted ? 'bg-green-600 hover:bg-green-700' : `${ACCENT_COLOR_CLASS_BG} ${ACCENT_COLOR_CLASS_BG_HOVER}`} text-white transform hover:scale-105`}><AddIconAction className="w-5 h-5 mr-2"/> {isCurrentlyWatchlisted ? 'On Watchlist' : 'Add to Watchlist'}</button>)}
+              <button onClick={() => onMarkAsSeen(item)} className={`flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-lg ${seenInfo ? 'bg-purple-600 hover:bg-purple-700' : 'bg-teal-600 hover:bg-teal-700'} text-white transform hover:scale-105`}><SeenIconAction className="w-5 h-5 mr-2"/> {seenInfo ? `Rated ${REACTION_EMOJIS[seenInfo.userReaction]}` : 'Mark as Seen'}</button>
+              <button onClick={() => onAddToList(item)} className={`flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-lg bg-blue-600 hover:bg-blue-700 text-white transform hover:scale-105`}><ListBulletIcon className="w-5 h-5 mr-2"/>Add to List</button>
+            </div>
           </div>
         </div>
+        {item.overview && (<div><h2 className={`text-xl font-semibold mb-2.5 ${ACCENT_COLOR_CLASS_TEXT}`}>Overview</h2><p className="text-slate-300 leading-relaxed text-sm md:text-base">{item.overview}</p></div>)}
+        {seenInfo && seenInfo.userNotes && (<div><h2 className={`text-xl font-semibold mb-2.5 ${ACCENT_COLOR_CLASS_TEXT}`}>Your Notes</h2><p className="text-slate-300 leading-relaxed text-sm md:text-base bg-slate-800 p-4 rounded-lg border border-slate-700 whitespace-pre-wrap">{seenInfo.userNotes}</p></div>)}
+        {isLoading && !watchProviders && <div><h2 className={`text-xl font-semibold mb-2.5 ${ACCENT_COLOR_CLASS_TEXT}`}>Where to Watch</h2><Skeleton className="w-full h-20"/></div> }
+        {!isLoading && watchProviders && (<div><h2 className={`text-xl font-semibold mb-3 ${ACCENT_COLOR_CLASS_TEXT}`}>Where to Watch <span className="text-xs text-slate-500">(US)</span></h2><WatchProviderDisplay providers={watchProviders} itemTitle={title || 'this item'} /></div>)}
+        {credits && credits.cast && credits.cast.length > 0 && (
+          <div><h2 className={`text-xl font-semibold mb-4 ${ACCENT_COLOR_CLASS_TEXT}`}>Top Billed Cast</h2>
+            <div className="flex space-x-4 overflow-x-auto pb-4 -mx-3 px-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-800/50">
+              {credits.cast.slice(0, 15).map(member => <CastCard key={member.id} member={member} onClick={handlePersonClick} />)}
+            </div>
+          </div>
+        )}
+        {credits && credits.crew && credits.crew.length > 0 && (
+          <div><h2 className={`text-xl font-semibold mb-3 ${ACCENT_COLOR_CLASS_TEXT}`}>Key Crew Members</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {credits.crew.filter(c => ['Directing', 'Writing', 'Production'].includes(c.department) && (c.job === 'Director' || c.job === 'Screenplay' || c.job === 'Producer' || c.job === 'Executive Producer' || c.job === 'Writer' || c.job === 'Story')).slice(0,6).map(member => <CrewMemberDisplay key={`${member.id}-${member.job}`} member={member} onClick={handlePersonClick} />)}
+          </div></div>
+        )}
+        {item.media_type === 'tv' && (item as TMDBShow).seasons && ((item as TMDBShow).seasons?.length ?? 0) > 0 && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className={`text-xl font-semibold ${ACCENT_COLOR_CLASS_TEXT}`}>Seasons & Episodes</h2>
+              {((item as TMDBShow).seasons?.filter(s => s.episode_count > 0).length ?? 0) > 1 && 
+                <select value={selectedSeason ?? ''} onChange={(e) => handleSeasonChange(Number(e.target.value))} className={`p-2.5 bg-slate-700 text-slate-200 rounded-lg border border-slate-600 focus:ring-2 ${ACCENT_COLOR_CLASS_RING} ${ACCENT_COLOR_CLASS_BORDER} outline-none text-sm transition-colors`} aria-label="Select TV Season">
+                  <option value="" disabled>Select a season</option>
+                  {(item as TMDBShow).seasons!.filter(s => s.episode_count > 0 && (s.season_number > 0 || (((item as TMDBShow).seasons!.length === 1 && s.season_number === 0)))).sort((a,b) => a.season_number - b.season_number)
+                    .map(season => (<option key={season.id} value={season.season_number}>{season.name} ({season.episode_count} ep)</option>))}
+                </select>}
+            </div>
+            {isLoading && !tvSeasonDetails && (<div className="space-y-4">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="w-full h-28 rounded-xl" />)}</div>)}
+            {!isLoading && tvSeasonDetails && tvSeasonDetails.episodes.length > 0 && (<div className="space-y-4">{tvSeasonDetails.episodes.map(episode => <EpisodeCard key={episode.id} episode={episode} />)}</div>)}
+            {!isLoading && tvSeasonDetails && tvSeasonDetails.episodes.length === 0 && (<p className="text-slate-500">No episode information available for this season.</p>)}
+            {!isLoading && selectedSeason !== null && !tvSeasonDetails && error && (<p className="text-red-400 bg-red-900/50 p-4 rounded-xl">{error}</p>)}
+          </div>
+        )}
       </div>
-      {item.overview && (<div><h2 className={`text-xl font-semibold mb-2.5 ${ACCENT_COLOR_CLASS_TEXT}`}>Overview</h2><p className="text-slate-300 leading-relaxed text-sm md:text-base">{item.overview}</p></div>)}
-      {seenInfo && seenInfo.userNotes && (<div><h2 className={`text-xl font-semibold mb-2.5 ${ACCENT_COLOR_CLASS_TEXT}`}>Your Notes</h2><p className="text-slate-300 leading-relaxed text-sm md:text-base bg-slate-800 p-4 rounded-lg border border-slate-700 whitespace-pre-wrap">{seenInfo.userNotes}</p></div>)}
-      {isLoading && !watchProviders && <div><h2 className={`text-xl font-semibold mb-2.5 ${ACCENT_COLOR_CLASS_TEXT}`}>Where to Watch</h2><Skeleton className="w-full h-20"/></div> }
-      {!isLoading && watchProviders && (<div><h2 className={`text-xl font-semibold mb-3 ${ACCENT_COLOR_CLASS_TEXT}`}>Where to Watch <span className="text-xs text-slate-500">(US)</span></h2><WatchProviderDisplay providers={watchProviders} itemTitle={title || 'this item'} /></div>)}
-      {credits && credits.cast && credits.cast.length > 0 && (
-        <div><h2 className={`text-xl font-semibold mb-4 ${ACCENT_COLOR_CLASS_TEXT}`}>Top Billed Cast</h2>
-          <div className="flex space-x-4 overflow-x-auto pb-4 -mx-3 px-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-800/50">
-            {credits.cast.slice(0, 15).map(member => <CastCard key={member.id} member={member} onClick={handlePersonClick} />)}
-          </div>
-        </div>
-      )}
-      {credits && credits.crew && credits.crew.length > 0 && (
-        <div><h2 className={`text-xl font-semibold mb-3 ${ACCENT_COLOR_CLASS_TEXT}`}>Key Crew Members</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {credits.crew.filter(c => ['Directing', 'Writing', 'Production'].includes(c.department) && (c.job === 'Director' || c.job === 'Screenplay' || c.job === 'Producer' || c.job === 'Executive Producer' || c.job === 'Writer' || c.job === 'Story')).slice(0,6).map(member => <CrewMemberDisplay key={`${member.id}-${member.job}`} member={member} onClick={handlePersonClick} />)}
-        </div></div>
-      )}
-      {item.media_type === 'tv' && (item as TMDBShow).seasons && ((item as TMDBShow).seasons?.length ?? 0) > 0 && (
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className={`text-xl font-semibold ${ACCENT_COLOR_CLASS_TEXT}`}>Seasons & Episodes</h2>
-            {((item as TMDBShow).seasons?.filter(s => s.episode_count > 0).length ?? 0) > 1 && 
-              <select value={selectedSeason ?? ''} onChange={(e) => handleSeasonChange(Number(e.target.value))} className={`p-2.5 bg-slate-700 text-slate-200 rounded-lg border border-slate-600 focus:ring-2 ${ACCENT_COLOR_CLASS_RING} ${ACCENT_COLOR_CLASS_BORDER} outline-none text-sm transition-colors`} aria-label="Select TV Season">
-                <option value="" disabled>Select a season</option>
-                {(item as TMDBShow).seasons!.filter(s => s.episode_count > 0 && (s.season_number > 0 || (((item as TMDBShow).seasons!.length === 1 && s.season_number === 0)))).sort((a,b) => a.season_number - b.season_number)
-                  .map(season => (<option key={season.id} value={season.season_number}>{season.name} ({season.episode_count} ep)</option>))}
-              </select>}
-          </div>
-          {isLoading && !tvSeasonDetails && (<div className="space-y-4">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="w-full h-28 rounded-xl" />)}</div>)}
-          {!isLoading && tvSeasonDetails && tvSeasonDetails.episodes.length > 0 && (<div className="space-y-4">{tvSeasonDetails.episodes.map(episode => <EpisodeCard key={episode.id} episode={episode} />)}</div>)}
-          {!isLoading && tvSeasonDetails && tvSeasonDetails.episodes.length === 0 && (<p className="text-slate-500">No episode information available for this season.</p>)}
-          {!isLoading && selectedSeason !== null && !tvSeasonDetails && error && (<p className="text-red-400 bg-red-900/50 p-4 rounded-xl">{error}</p>)}
-        </div>
-      )}
     </div>
   );
 };
