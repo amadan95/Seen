@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import ScrollingPosterColumn from './ScrollingPosterColumn';
 
 // Simple Google Icon SVG - you can replace this with a better one or an icon library
 const GoogleIcon = () => (
@@ -49,8 +50,16 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-900 p-4">
-      <div className="w-full max-w-md p-8 bg-neutral-800 rounded-xl shadow-2xl border border-neutral-700">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-900 p-4 relative overflow-hidden">
+      {/* Background Animation Columns - Apply blur to posters, remove backdrop-blur */}
+      <div className="absolute inset-0 flex flex-row justify-center opacity-10 md:opacity-15 z-0 blur-lg">
+        <ScrollingPosterColumn mediaType="movie" scrollDirection="down" animationSpeed={30} />
+        <ScrollingPosterColumn mediaType="tv" scrollDirection="up" animationSpeed={40} />
+        <ScrollingPosterColumn mediaType="movie" scrollDirection="down" animationSpeed={25} />
+        <ScrollingPosterColumn mediaType="tv" scrollDirection="up" animationSpeed={35} />
+      </div>
+      
+      <div className="w-full max-w-md p-8 bg-neutral-800/80 backdrop-blur-md rounded-xl shadow-2xl border border-neutral-700/60 relative z-10">
         <h2 className="text-3xl font-bold text-center text-white mb-6">Login to Seen</h2>
         {error && <p className="bg-red-500/20 text-red-300 p-3 rounded-md mb-4 text-sm">{error}</p>}
         

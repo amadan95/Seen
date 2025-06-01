@@ -165,15 +165,15 @@ export const MediaCard: React.FC<MediaCardProps> = ({
 
 // --- Rated Media Card (for lists) ---
 interface RatedMediaCardProps {
-  item: RankedItem;
-  onClick?: (item: RankedItem) => void;
+  item: RankedItem | RatedItem;
+  onClick?: (item: RankedItem | RatedItem) => void;
 }
 export const RatedMediaCard: React.FC<RatedMediaCardProps> = ({ item, onClick }) => {
   const title = item.title || item.name || 'Untitled';
   const releaseYear = item.release_date?.substring(0,4) || item.first_air_date?.substring(0,4) || '';
 
   // Use personalScore directly, ensure it's a number, default to 0 if not.
-  const displayScore = typeof item.personalScore === 'number' ? item.personalScore : 0;
+  const displayScore = 'personalScore' in item && typeof item.personalScore === 'number' ? item.personalScore : null;
 
   return (
     <div 
@@ -187,16 +187,18 @@ export const RatedMediaCard: React.FC<RatedMediaCardProps> = ({ item, onClick })
         <div className="pr-16 md:pr-20">
           <h3 className="text-md md:text-lg font-semibold text-slate-100">{title}</h3>
           <p className="text-xs md:text-sm text-slate-400">{releaseYear} &bull; {item.genres?.map(g => g.name).join(', ') || 'N/A'}</p>
-          <p className="text-xs md:text-sm text-slate-400">Runtime: {item.runtimeCategory} &bull; Lang: {item.original_language?.toUpperCase()}</p>
+          <p className="text-xs md:text-sm text-slate-400">Runtime: {(item as RankedItem).runtimeCategory} &bull; Lang: {item.original_language?.toUpperCase()}</p>
           <p className="text-xs md:text-sm mt-1 line-clamp-2 md:line-clamp-3 text-slate-300">{item.overview}</p>
         </div>
-        <div 
-          className={`absolute top-1/2 right-4 transform -translate-y-1/2 
-                      w-10 h-10 md:w-11 md:h-11 rounded-full border-2 ${ACCENT_COLOR_CLASS_BORDER} 
-                      flex items-center justify-center flex-shrink-0`}
-        >
-          <p className={`text-sm md:text-base font-semibold ${ACCENT_COLOR_CLASS_TEXT}`}>{displayScore.toFixed(1)}</p>
-        </div>
+        {displayScore !== null && (
+          <div 
+            className={`absolute top-1/2 right-4 transform -translate-y-1/2 
+                        w-10 h-10 md:w-11 md:h-11 rounded-full border-2 ${ACCENT_COLOR_CLASS_BORDER} 
+                        flex items-center justify-center flex-shrink-0`}
+          >
+            <p className={`text-sm md:text-base font-semibold ${ACCENT_COLOR_CLASS_TEXT}`}>{displayScore.toFixed(1)}</p>
+          </div>
+        )}
         <div className="mt-3">
           {item.userNotes && 
             <div className="flex items-center text-slate-500">
