@@ -154,7 +154,7 @@ const MediaCarousel: React.FC<MediaCarouselProps> = ({
           {items.map((item) => (
             <div 
               key={`${item.id}-${item.media_type}`}
-              className="flex-shrink-0 flex-grow-0 w-[224px] h-[336px] px-1 pb-2 select-none aspect-[2/3]"
+              className="flex-shrink-0 flex-grow-0 w-[224px] px-1 pb-2 select-none"
             >
               <MediaCard 
                 item={item} 

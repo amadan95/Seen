@@ -1105,7 +1105,19 @@ const MediaDetailPage: React.FC<BasePageProps> = ({ userListService, onAddToWatc
   const seenInfo = item.media_type && item.media_type !== 'person' ? userListService.isSeen(item.id, item.media_type) : undefined;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 relative"> {/* Added relative positioning for the back button */}
+      {/* Back Button */}
+      {window.history.length > 1 && (
+        <button
+          onClick={() => navigate(-1)}
+          className="absolute top-0 left-0 z-20 flex items-center p-2 bg-slate-800/70 hover:bg-slate-700/90 text-slate-200 rounded-full shadow-lg transition-colors mt-0 ml-0"
+          aria-label="Go back"
+          title="Go back"
+        >
+          <ChevronLeftIcon className="w-6 h-6" />
+        </button>
+      )}
+
       {item.backdrop_path && (<div className="relative h-56 md:h-96 -mx-3 sm:-mx-4 -mt-5 sm:-mt-6 rounded-b-xl overflow-hidden shadow-xl"><img src={`${TMDB_IMAGE_BASE_URL_ORIGINAL}${item.backdrop_path}`} alt={`${title} backdrop`} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent"></div></div>)}
       <div className={`flex flex-col md:flex-row gap-6 md:gap-8 ${item.backdrop_path ? 'md:-mt-32 relative z-10' : ''}`}>
         <div className="w-1/2 md:w-1/3 lg:w-1/4 mx-auto md:mx-0 flex-shrink-0"><PosterImage path={item.poster_path} alt={title || "Poster"} className="rounded-xl shadow-2xl aspect-[2/3]" /></div>
