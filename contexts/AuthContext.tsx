@@ -2,15 +2,20 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient'; // Adjust path if your supabaseClient is elsewhere
 
-interface AuthContextType {
+export interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  error: string | null;
   signInWithPassword: (email: string, password: string) => Promise<any>;
   signUp: (email: string, password: string, additionalData?: Record<string, any>) => Promise<any>;
   signOut: () => Promise<any>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
+  signInAnonymously: (captchaToken?: string) => Promise<{ user: User | null; session: Session | null; error: Error | null; }>;
+  updateAnonymousUserToEmailPassword: (email: string, password: string) => Promise<{ user: User | null; error: Error | null; }>;
+  linkOAuthToAnonymousUser: (provider: 'google' | 'apple' /* add other providers as needed */) => Promise<{ error: Error | null; }>;
+  resetPasswordForEmail: (email: string, options?: { redirectTo?: string }) => Promise<{ error: Error | null }>;
   // Add other auth-related states or functions if needed, e.g., userProfile
 }
 
@@ -20,6 +25,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -78,13 +84,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signInWithGoogle = async () => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-    });
-    setLoading(false); // Typically, the page will redirect, so this might not always be hit before redirect
-    if (error) {
-      console.error('Error signing in with Google:', error.message);
-      throw error;
+    setError(null);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+      if (signInError) throw signInError;
+      // The user will be redirected, and onAuthStateChange will handle the session.
+    } catch (err: any) {
+      console.error("Error signing in with Google:", err);
+      setError(err.message || 'Failed to sign in with Google.');
+      setLoading(false); // Only set loading false on error, as redirect handles success
     }
   };
 
@@ -100,15 +108,107 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const signInAnonymously = async (captchaToken?: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: signInError } = await supabase.auth.signInAnonymously(
+        captchaToken ? { options: { captchaToken } } : undefined
+      );
+      if (signInError) throw signInError;
+      if (data.user) {
+        setUser(data.user);
+        // Potentially navigate or update UI state
+      } else if (data.session) {
+        // Fallback if user is null but session exists (should contain user)
+        setUser(data.session.user);
+      } else {
+        throw new Error("Anonymous sign-in did not return user or session.");
+      }
+      setLoading(false);
+      return { user: data.user, session: data.session, error: null };
+    } catch (err: any) {
+      console.error("Error signing in anonymously:", err);
+      const errorMessage = err.message || 'Failed to sign in anonymously.';
+      setError(errorMessage);
+      setLoading(false);
+      return { user: null, session: null, error: new Error(errorMessage) };
+    }
+  };
+
+  const updateAnonymousUserToEmailPassword = async (email: string, password: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      // First, update the email. Supabase might require email verification before a password can be set if not already verified.
+      // However, for converting anonymous, often setting both might work or Supabase handles the flow.
+      const { data: updatedUserData, error: updateError } = await supabase.auth.updateUser({ email, password });
+      if (updateError) throw updateError;
+      
+      // The onAuthStateChange listener should pick up the user change if successful.
+      // If direct update, setUser might be needed, but updateUser usually triggers onAuthStateChange.
+      setUser(updatedUserData.user);
+      setLoading(false);
+      return { user: updatedUserData.user, error: null };
+    } catch (err: any) {
+      console.error("Error updating anonymous user to email/password:", err);
+      const errorMessage = err.message || 'Failed to update account.';
+      setError(errorMessage);
+      setLoading(false);
+      return { user: null, error: new Error(errorMessage) };
+    }
+  };
+
+  const linkOAuthToAnonymousUser = async (provider: 'google' | 'apple') => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: linkError } = await supabase.auth.linkIdentity({ provider });
+      if (linkError) throw linkError;
+      // On successful linking, Supabase usually handles the redirect and session update via onAuthStateChange.
+      // No explicit user setting here, rely on onAuthStateChange.
+      // setLoading(false) might not be reached if redirect occurs immediately.
+      return { error: null };
+    } catch (err: any) {
+      console.error(`Error linking ${provider} to anonymous user:`, err);
+      const errorMessage = err.message || `Failed to link ${provider} account.`;
+      setError(errorMessage);
+      setLoading(false); // Set loading false on error
+      return { error: new Error(errorMessage) };
+    }
+  };
+
+  const resetPasswordForEmail = async (email: string, options?: { redirectTo?: string }) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, options);
+      setLoading(false);
+      if (resetError) throw resetError;
+      return { error: null };
+    } catch (err: any) {
+      console.error("Error sending password reset email:", err);
+      const errorMessage = err.message || 'Failed to send password reset email.';
+      setError(errorMessage);
+      setLoading(false);
+      return { error: new Error(errorMessage) };
+    }
+  };
+
   const value = {
     session,
     user,
     loading,
+    error,
     signInWithPassword,
     signUp,
     signOut,
     signInWithGoogle,
     signInWithApple,
+    signInAnonymously,
+    updateAnonymousUserToEmailPassword,
+    linkOAuthToAnonymousUser,
+    resetPasswordForEmail,
   };
 
   return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;

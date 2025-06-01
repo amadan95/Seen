@@ -8,7 +8,9 @@ import {
   PencilIcon, TrashIcon, FilmIcon, TvIcon, RectangleStackIcon, CheckCircleIcon, ArrowUpOnSquareIcon, 
   TrophyIcon, FireIcon, UserIcon as ProfileNavIcon, BookmarkIcon as WantToTryIcon, HeartIcon as RecsIcon, 
   NewHomeIcon, NewExploreIcon, NewListIcon, NewUserIcon, // Added new icons
-  FilterIcon, BookmarkSquareIcon, BookmarkIcon // IMPORT THE NEW FilterIcon and BookmarkSquareIcon AND BookmarkIcon for MyListsPage tabs
+  FilterIcon, BookmarkSquareIcon, BookmarkIcon, // IMPORT THE NEW FilterIcon and BookmarkSquareIcon AND BookmarkIcon for MyListsPage tabs
+  EyeIcon, // Removed EyeSlashIcon, GoogleIcon, EmailIcon
+  // Removed LocalGoogleIcon, LocalEyeSlashIcon, LocalEmailIcon
 } from './icons';
 import TopCategoryNav from './TopCategoryNav'; // Import the new component
 import MediaCarousel from './MediaCarousel'; // ADD MediaCarousel import
@@ -1617,9 +1619,14 @@ const FeedPage: React.FC<FeedPageProps> = ({ currentUser }) => {
 };
 
 // --- Profile Page ---
-const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist }) => {
+const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist, userListService }) => {
     const navigate = useNavigate();
-    const { user, signOut, loading: authLoading } = useAuth(); // Renamed loading to authLoading to avoid conflict
+    const { user, signOut, loading: authLoading, error: authError, updateAnonymousUserToEmailPassword, linkOAuthToAnonymousUser } = useAuth();
+    const [conversionEmail, setConversionEmail] = useState('');
+    const [conversionPassword, setConversionPassword] = useState('');
+    const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+    const [conversionError, setConversionError] = useState<string | null>(null);
+    const [conversionLoading, setConversionLoading] = useState(false);
 
     useEffect(() => {
       if (!authLoading && !user) {
@@ -1630,10 +1637,9 @@ const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist }) => {
     const handleSignOut = async () => {
       try {
         await signOut();
-        navigate('/login'); // Redirect to login after sign out
+        navigate('/login');
       } catch (error) {
         console.error("Error signing out: ", error);
-        // Handle error display to user if necessary
       }
     };
 
@@ -1641,39 +1647,107 @@ const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist }) => {
         if (item.media_type) navigate(`/media/${item.media_type}/${item.id}`);
     };
     
-    // Show loading spinner while auth state is being determined
-    if (authLoading) {
-      return <LoadingSpinner />;
-    }
+    const handleConvertToEmailPassword = async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      if (!conversionEmail || !conversionPassword) {
+        setConversionError("Email and password are required.");
+        return;
+      }
+      if (conversionPassword.length < 6) {
+        setConversionError("Password must be at least 6 characters long.");
+        return;
+      }
+      setConversionError(null);
+      setConversionLoading(true);
+      const { error } = await updateAnonymousUserToEmailPassword(conversionEmail, conversionPassword);
+      setConversionLoading(false);
+      if (error) {
+        setConversionError(error.message);
+      } else {
+        alert("Account successfully converted! You can now sign in with your email and password.");
+        setConversionEmail('');
+        setConversionPassword('');
+      }
+    };
 
-    // If still no user after loading, ProfilePage shouldn't render (useEffect will redirect)
-    // This is an additional safeguard or for cases where redirect hasn't happened yet.
-    if (!user) {
-      return null; // Or a message, but redirect is preferred
-    }
+    const handleLinkGoogle = async () => {
+      setConversionError(null);
+      setConversionLoading(true);
+      const { error } = await linkOAuthToAnonymousUser('google');
+      setConversionLoading(false);
+      if (error) {
+        setConversionError(error.message);
+      }
+      // On success, Supabase handles redirection and session update.
+    };
+
+    if (authLoading) return <LoadingSpinner />; // Removed size prop
+    if (!user) return null;
     
-    const initials = user.email?.substring(0, 2).toUpperCase() || '??';
-    const displayName = user.user_metadata?.username || user.email || 'User';
+    const initials = user.email?.substring(0, 2).toUpperCase() || user.user_metadata?.username?.substring(0,2).toUpperCase() || '??';
+    const displayName = user.user_metadata?.username || user.email || (user.is_anonymous ? 'Anonymous User' : 'User');
     const memberSince = user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A';
-
 
     return (
     <div className="space-y-8">
-            {/* User Info Header */}
+      {/* User Info Header */}
       <div className="flex items-center space-x-4 p-1">
         {user.user_metadata?.avatar_url ? (
           <img src={user.user_metadata.avatar_url} alt={displayName} className="w-20 h-20 rounded-full object-cover border-2 border-slate-600 shadow-md" />
         ) : (
           <div className="w-20 h-20 rounded-full bg-slate-700 flex items-center justify-center text-3xl font-bold text-slate-300 border-2 border-slate-600 shadow-md">
-                        {initials}
-                    </div>
-                )}
+            {initials}
+          </div>
+        )}
         <div>
           <h1 className="text-3xl font-bold text-slate-100">{displayName}</h1>
-          {/* Placeholder for bio or other user info */}
-          <p className="text-sm text-slate-400">Member since {memberSince} &bull; {seenList.length} items rated</p>
-                </div>
+          <p className="text-sm text-slate-400">Member since {memberSince} &bull; {seenList.length} items rated {user.is_anonymous && <span className="ml-2 px-2 py-0.5 bg-sky-600 text-sky-100 text-xs rounded-full">ANONYMOUS</span>}</p>
+        </div>
+      </div>
+      
+      {/* Account Conversion Section for Anonymous Users */}
+      {user.is_anonymous && (
+        <div className="bg-slate-800/70 p-6 rounded-xl border border-slate-700 shadow-lg space-y-5">
+          <h2 className={`text-xl font-semibold ${ACCENT_COLOR_CLASS_TEXT} mb-3`}>Convert to Permanent Account</h2>
+          <p className="text-sm text-slate-300 mb-4">
+            Secure your account and access it from any device by adding an email/password or linking a Google account.
+          </p>
+
+          {conversionError && <p className="text-red-400 bg-red-900/30 p-3 rounded-md text-sm mb-3">{conversionError}</p>}
+          
+          <form onSubmit={handleConvertToEmailPassword} className="space-y-4">
+            <div>
+              <label htmlFor="conversionEmail" className="block text-sm font-medium text-slate-300 mb-1">New Email</label>
+              <input type="email" id="conversionEmail" value={conversionEmail} onChange={(e) => setConversionEmail(e.target.value)} required className="w-full p-2.5 bg-slate-700/80 text-slate-100 rounded-md border border-slate-600 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-400" placeholder="you@example.com" disabled={conversionLoading}/>
             </div>
+            <div>
+              <label htmlFor="conversionPassword" className="block text-sm font-medium text-slate-300 mb-1">New Password</label>
+              <div className="relative">
+                <input type={isPasswordVisible ? "text" : "password"} id="conversionPassword" value={conversionPassword} onChange={(e) => setConversionPassword(e.target.value)} required minLength={6} className="w-full p-2.5 bg-slate-700/80 text-slate-100 rounded-md border border-slate-600 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 placeholder-slate-400" placeholder="•••••••• (min. 6 characters)" disabled={conversionLoading}/>
+                <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 px-3 flex items-center text-sm text-slate-400 hover:text-slate-200" disabled={conversionLoading}>
+                  {isPasswordVisible ? <EyeIcon className="h-5 w-5"/> : <LocalEyeSlashIcon className="h-5 w-5"/>}
+                </button>
+              </div>
+            </div>
+            <button type="submit" disabled={conversionLoading} className={`w-full flex items-center justify-center py-2.5 px-4 rounded-md text-sm font-semibold text-white ${ACCENT_COLOR_CLASS_BG} ${ACCENT_COLOR_CLASS_BG_HOVER} disabled:opacity-60 disabled:cursor-not-allowed`}>
+              {conversionLoading && <LoadingSpinner className="mr-2 h-5 w-5" />}
+              <LocalEmailIcon className="w-5 h-5 mr-2" /> Convert with Email/Password
+            </button>
+          </form>
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center" aria-hidden="true"><div className="w-full border-t border-slate-600" /></div>
+            <div className="relative flex justify-center text-sm"><span className="px-2 bg-slate-800 text-slate-400">OR</span></div>
+          </div>
+
+          <button onClick={handleLinkGoogle} disabled={conversionLoading} className="w-full flex items-center justify-center py-2.5 px-4 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-md shadow-sm transition-colors duration-150 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed">
+            {conversionLoading && <LoadingSpinner className="mr-2 h-5 w-5" />}
+            <LocalGoogleIcon className="w-5 h-5 mr-2" /> Link with Google
+          </button>
+        </div>
+      )}
+
+      {/* Sign Out Button */}
       <button 
         onClick={handleSignOut} 
         disabled={authLoading}
@@ -1684,43 +1758,66 @@ const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist }) => {
       {/* Stats Section */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
         <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-md">
-          <p className="text-3xl font-bold ${ACCENT_COLOR_CLASS_TEXT}">{seenList.length}</p>
+          <p className={`text-3xl font-bold ${ACCENT_COLOR_CLASS_TEXT}`}>{seenList.length}</p>
           <p className="text-xs text-slate-400 uppercase">Total Items Rated</p>
             </div>
         <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-md">
-          <p className="text-3xl font-bold ${ACCENT_COLOR_CLASS_TEXT}">{watchlist.length}</p>
+          <p className={`text-3xl font-bold ${ACCENT_COLOR_CLASS_TEXT}`}>{watchlist.length}</p>
           <p className="text-xs text-slate-400 uppercase">On Watchlist</p>
             </div>
         <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-md col-span-2 sm:col-span-1">
-          <p className="text-3xl font-bold ${ACCENT_COLOR_CLASS_TEXT}">{userListService.calculateWeeklyStreak()} Day{userListService.calculateWeeklyStreak() !== 1 ? 's' : ''}</p>
+          <p className={`text-3xl font-bold ${ACCENT_COLOR_CLASS_TEXT}`}>{userListService.calculateWeeklyStreak()} Day{userListService.calculateWeeklyStreak() !== 1 ? 's' : ''}</p>
           <p className="text-xs text-slate-400 uppercase">Rating Streak</p>
                 </div>
             </div>
 
       {/* Recent Activity Section */}
-                    <div>
+      <div>
         <h2 className="text-xl font-semibold text-slate-200 mb-3">Recent Activity</h2>
-        <div className="space-y-4"> {/* Added this div with space-y-4 */}
+        <div className="space-y-4">
           {userListService.getRankedList()
             .sort((a, b) => new Date(b.ratedAt).getTime() - new Date(a.ratedAt).getTime())
             .slice(0, 5)
             .map(item => (
-              <RatedMediaCard key={item.id} item={item} onClick={handleCardClick} />
+              <RatedMediaCard key={`${item.id}-${item.media_type}`} item={item} onClick={handleCardClick} />
             ))}
-        </div> {/* Closing the added div */}
+        </div>
       </div>
 
-      {/* Placeholder for Friends Activity, Achievements, etc. */}
-       <p className="text-center text-xs text-slate-600 pt-6">More profile features coming soon!</p>
-        </div>
-    );
+      <p className="text-center text-xs text-slate-600 pt-6">More profile features coming soon!</p>
+    </div>
+  );
 };
 
 // Simple Loading Spinner Component
-const LoadingSpinner: React.FC = () => (
-  <div className="flex justify-center items-center py-10">
-    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-500"></div>
+const LoadingSpinner: React.FC<{ className?: string }> = ({ className }) => (
+  <div className={`flex justify-center items-center py-10 ${className || ''}`.trim()}>
+    <div className={`animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-500 ${className ? 'h-5 w-5' : ''}`.trim()}></div>
   </div>
+);
+
+// --- SVG Icon Definitions for ProfilePage (local to App.tsx) ---
+
+const LocalGoogleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg {...props} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+    <path d="M1 1h22v22H1z" fill="none"/>
+  </svg>
+);
+
+const LocalEyeSlashIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg {...props} fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243L6.228 6.228" />
+  </svg>
+);
+
+const LocalEmailIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg {...props} fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+  </svg>
 );
 
 export default App;
