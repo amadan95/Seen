@@ -18,6 +18,7 @@ import { APP_NAME, REACTION_EMOJIS, REACTION_LABELS, TMDB_IMAGE_BASE_URL_ORIGINA
 import { LoginPage } from './components/LoginPage'; // Added
 import { SignupPage } from './components/SignupPage'; // Added
 import { useAuth } from './contexts/AuthContext'; // Import useAuth
+import OnboardingPage from './components/OnboardingPage'; // Added OnboardingPage import
 
 const MAX_COMPARISONS_PER_ITEM = 5;
 
@@ -26,6 +27,7 @@ const AppContent: React.FC = () => {
   const { user, loading: authLoading } = useAuth(); // Get auth state
   const navigate = useNavigate(); // Added for redirection
   const location = useLocation();
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [seenList, setSeenList] = useState<RatedItem[]>([]);
@@ -46,52 +48,12 @@ const AppContent: React.FC = () => {
 
   const [currentExploreTab, setCurrentExploreTab] = useState<'trendingMovies' | 'trendingShows' | 'search' | 'forYou' | 'moviesOnly' | 'tvShowsOnly'>('trendingMovies');
   
-  useEffect(() => {
-    if (!authLoading && !user) {
-      const publicPaths = ['/login', '/signup'];
-      if (!publicPaths.includes(location.pathname)) {
-        navigate('/login');
-      }
-    }
-  }, [authLoading, user, location, navigate]);
-
-  // Show loading spinner for the entire app while auth state is resolving
-  // and user is not yet available, AND we are not on a public path already.
-  // This prevents a flash of content before potential redirect.
-  if (authLoading && !user && !['/login', '/signup'].includes(location.pathname)) {
-    return (
-      <div className="min-h-screen bg-[#111111] text-[#F6F6F6] flex flex-col font-sans items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
-  const handleCategorySelected = (category: string) => {
-    console.log("Selected category from TopNav:", category);
-    switch (category) {
-      case "Trending":
-        setCurrentExploreTab('trendingMovies');
-        break;
-      case "Movies":
-        setCurrentExploreTab('moviesOnly');
-        break;
-      case "TV shows":
-        setCurrentExploreTab('tvShowsOnly');
-        break;
-      case "Recommendations": 
-        setCurrentExploreTab('forYou');
-        break;
-      default:
-        setCurrentExploreTab('trendingMovies');
-        break;
-    }
-  };
-
+  // Moved all hooks before the conditional return
   useEffect(() => {
     setWatchlist(userListService.getWatchlist());
     setSeenList(userListService.getSeenList());
     setCustomLists(userListService.getCustomLists());
-  }, []);
+  }, []); // This effect now runs on initial mount, good for fetching initial data
 
   const handleAddToWatchlist = useCallback((item: MediaItem) => {
     const updated = userListService.addToWatchlist(item);
@@ -109,11 +71,6 @@ const AppContent: React.FC = () => {
     setCurrentUserNotes(existingRating?.userNotes || "");
     setIsReactionModalOpen(true);
   }, []);
-
-  const calculatePivotIndexSmartly = (low: number, high: number, newItem: RatedItem, comparisonList: RatedItem[]): number => {
-    if (low > high) return low;
-    return Math.floor((low + high) / 2);
-  };
 
   const proceedToNextComparisonStep = useCallback(async (session: IterativeComparisonSession) => {
     if (!session.isActive) return;
@@ -135,7 +92,7 @@ const AppContent: React.FC = () => {
     const promptText = await geminiService.generateComparisonPrompt({ newItem: session.newItem, existingItem: pivotItem, reaction: session.newItem.userReaction, isIterative: true, sharedGenres });
     setIsLoadingGlobal(false);
     setIterativeComparisonState({ ...session, pivotItem: pivotItem, currentPrompt: promptText });
-  }, []);
+  }, []); // Removed dependencies that were causing re-memoization issues earlier, they are stable or correctly handled by closure.
 
   const startIterativeComparison = useCallback(async (ratedItem: RatedItem) => {
     setIsLoadingGlobal(true);
@@ -159,12 +116,11 @@ const AppContent: React.FC = () => {
     if (!selectedItemForReaction) return;
     setIsLoadingGlobal(true); setIsReactionModalOpen(false);
     const ratedItem = await userListService.createRatedItem(selectedItemForReaction, reaction, currentUserNotes);
-    setWatchlist(userListService.getWatchlist());
-    setSeenList(userListService.getSeenList());
+    setWatchlist(userListService.getWatchlist()); // Update watchlist after rating
+    setSeenList(userListService.getSeenList()); // Update seenlist from source of truth
     setSelectedItemForReaction(null); setCurrentUserNotes("");
     await startIterativeComparison(ratedItem);
   }, [selectedItemForReaction, currentUserNotes, startIterativeComparison]);
-
 
   const handleIterativeComparisonChoice = useCallback((chosenItem: MediaItem) => {
     if (!iterativeComparisonState || !iterativeComparisonState.pivotItem || !iterativeComparisonState.isActive) return;
@@ -178,22 +134,60 @@ const AppContent: React.FC = () => {
     proceedToNextComparisonStep(updatedSession);
   }, [iterativeComparisonState, proceedToNextComparisonStep]);
   
+  // Main useEffect for onboarding and auth redirection logic
+  useEffect(() => {
+    const onboardingCompleted = localStorage.getItem('onboardingCompleted');
+    if (!onboardingCompleted) {
+      navigate('/onboarding');
+      setInitialLoading(false);
+      return; 
+    }
+
+    if (!authLoading && !user) {
+      const publicPaths = ['/login', '/signup', '/onboarding'];
+      if (!publicPaths.includes(location.pathname)) {
+        navigate('/login');
+      }
+    }
+    setInitialLoading(false);
+  }, [authLoading, user, location, navigate]); // Dependencies for this effect
+
+  // Conditional return for loading states - NOW ALL HOOKS ARE CALLED BEFORE THIS
+  if (initialLoading || (authLoading && !user && !['/login', '/signup', '/onboarding'].includes(location.pathname))) {
+    return (
+      <div className="min-h-screen bg-[#111111] text-[#F6F6F6] flex flex-col font-sans items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  // Helper function (not a hook)
+  const calculatePivotIndexSmartly = (low: number, high: number, newItem: RatedItem, comparisonList: RatedItem[]): number => {
+    if (low > high) return low;
+    return Math.floor((low + high) / 2);
+  };
+
+  // Helper function (not a hook)
   const handleCancelIterativeComparison = () => {
     setIterativeComparisonState(null); setIsLoadingGlobal(false); setCurrentUserNotes("");
   };
   
+  // Helper function (not a hook)
   const handleCreateCustomList = (name: string, description?: string) => {
     const updatedLists = userListService.createCustomList(name, description);
     setCustomLists(updatedLists);
   };
+  // Helper function (not a hook)
   const handleOpenAddToListModal = (item: MediaItem) => {
     setSelectedMediaForListAddition(item);
     setIsAddToListModalOpen(true);
   };
+  // Helper function (not a hook)
   const handleAddItemToCustomList = (listId: string, item: MediaItem) => {
     const updatedList = userListService.addItemToCustomList(listId, item);
     if (updatedList) setCustomLists(userListService.getCustomLists());
   };
+  // Helper function (not a hook)
   const handleCreateAndAddToList = (listName: string, item: MediaItem, listDescription?: string) => {
     const newLists = userListService.createCustomList(listName, listDescription);
     const newList = newLists.find(l => l.name === listName);
@@ -203,8 +197,19 @@ const AppContent: React.FC = () => {
     setCustomLists(userListService.getCustomLists());
   };
 
+  const handleCategorySelected = (category: string) => {
+    console.log("Selected category from TopNav:", category);
+    switch (category) {
+      case "Trending": setCurrentExploreTab('trendingMovies'); break;
+      case "Movies": setCurrentExploreTab('moviesOnly'); break;
+      case "TV shows": setCurrentExploreTab('tvShowsOnly'); break;
+      case "Recommendations": setCurrentExploreTab('forYou'); break;
+      default: setCurrentExploreTab('trendingMovies'); break;
+    }
+  };
+
   const commonPageProps: BasePageProps = {
-    userListService, // Add userListService here
+    userListService,
     watchlist,
     seenList,
     customLists,
@@ -213,7 +218,7 @@ const AppContent: React.FC = () => {
     onRemoveFromWatchlist: handleRemoveFromWatchlist,
     onAddToList: handleOpenAddToListModal,
     setCustomLists, 
-    openCreateListModal: () => setIsCreateListModalOpen(true) // Ensure this matches BasePageProps
+    openCreateListModal: () => setIsCreateListModalOpen(true)
   };
 
   return (
@@ -221,8 +226,9 @@ const AppContent: React.FC = () => {
       {location.pathname === '/explore' && <TopCategoryNav onCategorySelect={handleCategorySelected} />}
         <main className="flex-grow container mx-auto px-3 sm:px-4 py-5 sm:py-6 mb-20">
           <Routes>
-            <Route path="/login" element={<LoginPage />} /> {/* Added login route */}
-            <Route path="/signup" element={<SignupPage />} /> {/* Added signup route */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+            <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/" element={<FeedPage {...commonPageProps} currentUser={mockUser} />} />
           <Route path="/explore" element={<ExplorePage {...commonPageProps} initialTab={currentExploreTab} watchlist={watchlist} />} />
             <Route path="/mylists" element={<MyListsPage {...commonPageProps} openCreateListModal={() => setIsCreateListModalOpen(true)} />} />
@@ -233,7 +239,6 @@ const AppContent: React.FC = () => {
           </Routes>
         </main>
       <AppNavigation setCurrentExploreTab={setCurrentExploreTab} />
-
         <Modal isOpen={isReactionModalOpen} onClose={() => { setIsReactionModalOpen(false); setCurrentUserNotes("");}} title={`Rate: ${selectedItemForReaction?.title || selectedItemForReaction?.name}`} size="md">
           {selectedItemForReaction && (<><ReactionPicker onSelectReaction={handleReactionSelected} /><NotesTextarea value={currentUserNotes} onChange={setCurrentUserNotes} />
             <button onClick={() => { const reactionToSubmit = selectedItemForReaction.media_type && userListService.isSeen(selectedItemForReaction.id, selectedItemForReaction.media_type as 'movie'|'tv')?.userReaction || Reaction.Fine; handleReactionSelected(reactionToSubmit); }}
@@ -244,10 +249,8 @@ const AppContent: React.FC = () => {
           <PairwiseComparisonModal isOpen={true} onClose={handleCancelIterativeComparison} itemA={iterativeComparisonState.newItem} itemB={iterativeComparisonState.pivotItem} comparisonPrompt={iterativeComparisonState.currentPrompt} onChoose={handleIterativeComparisonChoice} />
         )}
         <ComparisonSummaryModal isOpen={comparisonSummaryState.show} onClose={() => setComparisonSummaryState({ show: false, rankedItem: null, comparisonHistory: [], totalComparisonsMade: 0 })} rankedItem={comparisonSummaryState.rankedItem} comparisonHistory={comparisonSummaryState.comparisonHistory} totalComparisonsMade={comparisonSummaryState.totalComparisonsMade} />
-        
         <CreateListModal isOpen={isCreateListModalOpen} onClose={() => setIsCreateListModalOpen(false)} onCreate={handleCreateCustomList} />
         <AddToListModal isOpen={isAddToListModalOpen} onClose={() => setIsAddToListModalOpen(false)} mediaItem={selectedMediaForListAddition} customLists={customLists} onAddToList={handleAddItemToCustomList} onCreateAndAddToList={handleCreateAndAddToList} />
-
         {isLoadingGlobal && (
             <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[100]"><div className="bg-slate-800 p-5 rounded-xl shadow-xl flex items-center space-x-3 border border-slate-700">
                 <svg className="animate-spin h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -285,17 +288,17 @@ const AppNavigation: React.FC<{ setCurrentExploreTab: (tab: 'trendingMovies' | '
   const { user, loading } = useAuth(); // Get auth state
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-[#1A1A1A]/90 backdrop-blur-md border-t border-gray-700 shadow-t-xl z-40"> {/* Adjusted background and border */}
-      <div className="container mx-auto sm:px-0">
-        <div className="flex justify-around items-center h-16">
-          <NavItem to="/" icon={<NewHomeIcon className="w-6 h-6" />} label="Feed" /> {/* Changed to NewHomeIcon */}
-          <NavItem 
-            to="/explore" 
-            icon={<NewExploreIcon className="w-6 h-6" />} 
-            label="Explore" 
-            onClick={() => setCurrentExploreTab('trendingMovies')} // Added onClick handler
-          /> {/* Changed to NewExploreIcon */}
-          <NavItem to="/mylists" icon={<NewListIcon className="w-6 h-6" />} label="My Lists" /> {/* Changed to NewListIcon */}
+  <nav className="fixed bottom-0 left-0 right-0 bg-[#1A1A1A]/90 backdrop-blur-md border-t border-gray-700 shadow-t-xl z-40"> {/* Adjusted background and border */}
+    <div className="container mx-auto sm:px-0">
+      <div className="flex justify-around items-center h-16">
+        <NavItem to="/" icon={<NewHomeIcon className="w-6 h-6" />} label="Feed" /> {/* Changed to NewHomeIcon */}
+        <NavItem 
+          to="/explore" 
+          icon={<NewExploreIcon className="w-6 h-6" />} 
+          label="Explore" 
+          onClick={() => setCurrentExploreTab('trendingMovies')} // Added onClick handler
+        /> {/* Changed to NewExploreIcon */}
+        <NavItem to="/mylists" icon={<NewListIcon className="w-6 h-6" />} label="My Lists" /> {/* Changed to NewListIcon */}
           {loading ? (
             <div className="flex flex-col items-center justify-center px-3 py-2.5 text-xs font-medium text-gray-500 w-1/4">
               <NewUserIcon className="w-6 h-6 animate-pulse" />
@@ -306,9 +309,9 @@ const AppNavigation: React.FC<{ setCurrentExploreTab: (tab: 'trendingMovies' | '
           ) : (
             <NavItem to="/login" icon={<NewUserIcon className="w-6 h-6" />} label="Login" />
           )}
-        </div>
       </div>
-    </nav>
+    </div>
+  </nav>
   )}; // Corrected: ensure this is a curly brace for the function body and a semicolon for the statement.
 
 interface BasePageProps {
@@ -377,7 +380,7 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
 
   // const prevSelectedGenreIdsInEffect = useRef<Set<number> | undefined>(undefined); // Initialized
   // --- END DIAGNOSTIC LOGGING ---
-  
+
   const [trendingMoviesResults, setTrendingMoviesResults] = useState<MediaItem[]>([]);
   const [trendingShowsResults, setTrendingShowsResults] = useState<MediaItem[]>([]);
   const [searchQueryResults, setSearchQueryResults] = useState<MediaItem[]>([]);
@@ -519,7 +522,7 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
 
   const handlePageChange = useCallback((newPage: number) => {
     // console.log('[ExplorePage] handlePageChange called.', { newPage, currentPage, totalPages, isLoading, activeTab, currentQuery });
-    if (newPage < 1 || newPage > totalPages || isLoading) return;
+    if (newPage < 1 || newPage > totalPages || isLoading) return; 
     setCurrentPage(newPage);
     if (activeTab === 'search' && currentQuery) {
       fetchMedia('search', currentQuery, newPage);
@@ -546,19 +549,19 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
           tmdbService.getTrendingMedia('movie', 'week', 1),
           tmdbService.getTrendingMedia('tv', 'week', 1)
         ]);
-
+        
         if (moviesData && showsData) {
-          const top5Movies = moviesData.results.slice(0, 5);
-          const top5Shows = showsData.results.slice(0, 5);
-          
-          // Interleave movies and shows
-          const combined: MediaItem[] = [];
-          const maxLength = Math.max(top5Movies.length, top5Shows.length);
-          for (let i = 0; i < maxLength; i++) {
-            if (i < top5Movies.length) combined.push(top5Movies[i]);
-            if (i < top5Shows.length) combined.push(top5Shows[i]);
-          }
-          setTopTrendingCombined(combined);
+        const top5Movies = moviesData.results.slice(0, 5);
+        const top5Shows = showsData.results.slice(0, 5);
+        
+        // Interleave movies and shows
+        const combined: MediaItem[] = [];
+        const maxLength = Math.max(top5Movies.length, top5Shows.length);
+        for (let i = 0; i < maxLength; i++) {
+          if (i < top5Movies.length) combined.push(top5Movies[i]);
+          if (i < top5Shows.length) combined.push(top5Shows[i]);
+        }
+        setTopTrendingCombined(combined);
         }
       } catch (err) {
         console.error("Failed to fetch horizontal scroll data:", err);
@@ -596,23 +599,23 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
       prevSelectedProviderIdsInEffect.current = selectedProviderIds;
       // --- END DIAGNOSTIC LOGGING FOR RESET EFFECT ---
 
-      setCurrentPage(1);
-      // Reset specific results arrays too
-      setTrendingMoviesResults([]);
-      setTrendingShowsResults([]);
-      setSearchQueryResults([]);
-      setMoviesOnlyResults([]);
-      setTvShowsOnlyResults([]);
-      setResults([]); // Reset generic results
+    setCurrentPage(1); 
+    // Reset specific results arrays too
+    setTrendingMoviesResults([]);
+    setTrendingShowsResults([]);
+    setSearchQueryResults([]);
+    setMoviesOnlyResults([]);
+    setTvShowsOnlyResults([]);
+    setResults([]); // Reset generic results
 
-      if (activeTab === 'forYou') { 
-        // generateForYouRecommendations is called by its own useEffect based on seenList 
-      } else if (activeTab === 'trendingMovies' || activeTab === 'trendingShows' || activeTab === 'moviesOnly' || activeTab === 'tvShowsOnly') { 
-        fetchMedia(activeTab, '', 1); 
-      } else if (activeTab === 'search') { 
-        if (currentQuery) fetchMedia('search', currentQuery, 1); 
-        else setResults([]); 
-      }
+    if (activeTab === 'forYou') { 
+      // generateForYouRecommendations is called by its own useEffect based on seenList 
+    } else if (activeTab === 'trendingMovies' || activeTab === 'trendingShows' || activeTab === 'moviesOnly' || activeTab === 'tvShowsOnly') { 
+      fetchMedia(activeTab, '', 1); 
+    } else if (activeTab === 'search') { 
+      if (currentQuery) fetchMedia('search', currentQuery, 1); 
+      else setResults([]); 
+    }
     } else {
       console.log('[ExplorePage] Main reset useEffect SKIPPED (dependencies did not change reference).');
     }
@@ -624,7 +627,7 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
   const prevSelectedGenreIdsInEffect = useRef<Set<number> | undefined>(undefined); // Re-add this line that was accidentally removed. It should be after the diagnostic logging section was commented out.
   const prevSelectedProviderIdsInEffect = useRef<typeof selectedProviderIds | undefined>(undefined); // Initialized
 
-
+  
   useEffect(() => { // Sync activeTab with location state OR prop if it changes
     const tabFromLocation = location.state?.activeTab;
     // If initialTab is explicitly provided and differs, it takes precedence.
@@ -911,7 +914,7 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
       {!(activeTab === 'forYou') && ( // Simpler condition, always render for paginated tabs
         <div ref={loadMoreRef} className="h-10 w-full flex items-center justify-center">
           {!isLoading && currentPage < totalPages && ( // Button only appears if not loading AND there are actually more pages
-            <button onClick={() => handlePageChange(currentPage + 1)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg">Load More</button>
+          <button onClick={() => handlePageChange(currentPage + 1)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg">Load More</button>
           )}
           {isLoading && ( // Show a small spinner here when loading more items
             <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-slate-500"></div>
@@ -1066,18 +1069,45 @@ const MediaDetailPage: React.FC<BasePageProps> = ({ userListService, onAddToWatc
 
 interface MyListsPageProps extends BasePageProps { openCreateListModal: () => void; }
 const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRemoveFromWatchlist, openCreateListModal, setCustomLists, seenList: globalSeenList }) => { // Renamed seenList to globalSeenList
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'watchlist' | 'ranking' | 'custom'>('watchlist');
-  
-  const [sortOption, setSortOption] = useState<'personalScore_desc' | 'personalScore_asc' | 'ratedAt_desc' | 'ratedAt_asc'>('personalScore_desc');
-  const [filterOptions, setFilterOptions] = useState({ mediaType: 'all', reaction: 'all', genre: 'all', runtime: 'all' });
-  const [allGenres, setAllGenres] = useState<TMDBGenre[]>([]);
+  type MyListsTab = 'ranking' | 'watchlist' | 'custom' | 'allseen';
+  const [activeTab, setActiveTab] = useState<MyListsTab>('ranking');
+  const navigate = useNavigate(); // Added useNavigate
 
-  const [paginatedRanking, setPaginatedRanking] = useState<RankedItem[]>([]);
+  const [filterOptions, setFilterOptions] = useState({ mediaType: 'all', reaction: 'all', genre: 'all', runtime: 'all', provider: undefined as number | undefined });
+  const [sortOption, setSortOption] = useState('personalScore_desc');
+  const [genres, setGenres] = useState<TMDBGenre[]>([]);
+
+  // Added missing state and ref for ranking pagination
   const [rankingPage, setRankingPage] = useState(1);
-  const rankingItemsPerPage = 15;
-  const rankingLoadMoreRef = useRef(null);
+  const [paginatedRanking, setPaginatedRanking] = useState<RankedItem[]>([]);
   const [isLoadingMoreRanking, setIsLoadingMoreRanking] = useState(false);
+  const rankingItemsPerPage = 20; // Define how many items per page for ranking
+  const rankingLoadMoreRef = useRef<HTMLDivElement | null>(null);
+
+
+  const seenListForRanking = useMemo(() => {
+    return globalSeenList
+      .map(item => ({
+        ...item,
+        personalScore: userListService.calculatePersonalScore(
+          // userListService.getRankInReactionBucket(item.id, item.media_type, item.userReaction),
+          0, // Placeholder for rank
+          // userListService.getTotalInReactionBucket(item.media_type, item.userReaction),
+          1, // Placeholder for total in bucket
+          item.userReaction
+        ),
+        // rank: userListService.getRankInReactionBucket(item.id, item.media_type, item.userReaction)
+        rank: 0 // Placeholder for rank
+      }))
+      .filter(item => item.personalScore > 0); // Filter out items with no score if needed
+  }, [globalSeenList]);
+
+  const tabs: { id: MyListsTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'ranking', label: 'My Seen Ranking', icon: <TrophyIcon className="w-5 h-5 mr-2" /> },
+    { id: 'watchlist', label: 'Watchlist', icon: <BookmarkIcon className="w-5 h-5 mr-2" /> },
+    { id: 'custom', label: 'Custom Lists', icon: <RectangleStackIcon className="w-5 h-5 mr-2" /> },
+    // { id: 'allseen', label: 'All Seen (No Rank)', icon: <SeenIconAction className="w-5 h-5 mr-2" /> },
+  ];
 
   useEffect(() => {
     const fetchGenres = async () => {
@@ -1086,11 +1116,11 @@ const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRem
       const uniqueGenres = [...movieGenres, ...tvGenres].filter((genre, index, self) => 
         index === self.findIndex((g) => g.id === genre.id && g.name === genre.name)
       );
-      setAllGenres(uniqueGenres);
+      setGenres(uniqueGenres);
     };
     fetchGenres();
   }, []);
-
+  
   const handleFilterChange = (type: keyof typeof filterOptions, value: string) => {
     setFilterOptions(prev => ({ ...prev, [type]: value }));
     setRankingPage(1); 
@@ -1206,17 +1236,17 @@ const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRem
 
   const handleCustomListClick = (listId: string) => navigate(`/mylists/${listId}`);
   const handleDeleteCustomList = (listId: string) => { if(window.confirm("Are you sure you want to delete this list?")) setCustomLists(userListService.deleteCustomList(listId)); };
-  
+
   const TABS = [
-    { id: 'watchlist', label: 'Watchlist', icon: <BookmarkIcon className="w-5 h-5 mr-2" /> },
     { id: 'ranking', label: 'My Seen Ranking', icon: <TrophyIcon className="w-5 h-5 mr-2" /> },
+    { id: 'watchlist', label: 'Watchlist', icon: <BookmarkIcon className="w-5 h-5 mr-2" /> },
     { id: 'custom', label: 'Custom Lists', icon: <RectangleStackIcon className="w-5 h-5 mr-2" /> },
   ];
 
   const renderTabContent = () => {
     switch (activeTab) {
       case 'watchlist':
-        return (
+  return (
           <div className="space-y-4">
             {watchlist.length > 0 ? watchlist.map(item => (
               <div key={`${item.id}-${item.media_type}`} className="flex items-center bg-slate-800 p-3 rounded-xl shadow-lg border border-slate-700">
@@ -1228,10 +1258,10 @@ const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRem
                 </div>
                 <button onClick={() => onRemoveFromWatchlist(item.id, item.media_type as 'movie'|'tv')} className="ml-3 p-2 text-red-500 hover:text-red-400 transition-colors rounded-md hover:bg-slate-700 flex-shrink-0">
                   <TrashIcon className="w-5 h-5" />
-                </button>
-              </div>
+          </button>
+      </div>
             )) : <p className="text-slate-400 text-center py-8">Your watchlist is empty. Add some movies or shows!</p>}
-          </div>
+      </div>
         );
       case 'ranking':
         return (
@@ -1245,7 +1275,7 @@ const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRem
                   <option value="ratedAt_desc">Date Rated: Newest</option>
                   <option value="ratedAt_asc">Date Rated: Oldest</option>
                 </select>
-              </div>
+          </div>
               <div>
                 <label htmlFor="mediaTypeFilter" className="block text-xs font-medium text-slate-400 mb-1">Media Type</label>
                 <select id="mediaTypeFilter" value={filterOptions.mediaType} onChange={e => handleFilterChange('mediaType', e.target.value)} className="w-full p-2 bg-slate-700 text-slate-200 rounded-md border border-slate-600 text-sm focus:ring-1 focus:ring-cyan-500">
@@ -1253,7 +1283,7 @@ const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRem
                   <option value="movie">Movies</option>
                   <option value="tv">TV Shows</option>
                 </select>
-              </div>
+            </div>
               <div>
                 <label htmlFor="reactionFilter" className="block text-xs font-medium text-slate-400 mb-1">Your Reaction</label>
                 <select id="reactionFilter" value={filterOptions.reaction} onChange={e => handleFilterChange('reaction', e.target.value)} className="w-full p-2 bg-slate-700 text-slate-200 rounded-md border border-slate-600 text-sm focus:ring-1 focus:ring-cyan-500">
@@ -1265,7 +1295,7 @@ const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRem
                 <label htmlFor="genreFilter" className="block text-xs font-medium text-slate-400 mb-1">Genre</label>
                 <select id="genreFilter" value={filterOptions.genre} onChange={e => handleFilterChange('genre', e.target.value)} className="w-full p-2 bg-slate-700 text-slate-200 rounded-md border border-slate-600 text-sm focus:ring-1 focus:ring-cyan-500">
                   <option value="all">All Genres</option>
-                  {allGenres.map(genre => <option key={genre.id} value={genre.id.toString()}>{genre.name}</option>)}
+                  {genres.map(genre => <option key={genre.id} value={genre.id.toString()}>{genre.name}</option>)}
                 </select>
               </div>
             </div>
@@ -1277,20 +1307,20 @@ const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRem
             </div>
 
             {paginatedRanking.length > 0 ? (
-              <div className="space-y-4">
+            <div className="space-y-4">
                 {paginatedRanking.map((item) => (
                   <RatedMediaCard key={`${item.id}-${item.media_type}-${item.userReaction}`} item={item} onClick={() => handleCardClick(item)} />
-                ))}
+              ))}
                 {paginatedRanking.length < rankedItems.length && (
                    <div ref={rankingLoadMoreRef} className="flex justify-center py-4">
                     {isLoadingMoreRanking ? <LoadingSpinner /> : <button onClick={loadMoreRankingItems} className="text-cyan-400 hover:text-cyan-300 font-medium">Load More</button>}
-                  </div>
-                )}
-              </div>
+            </div>
+          )}
+        </div>
             ) : (
               <p className="text-slate-400 text-center py-8">No items match your current filters, or you haven't rated anything yet.</p>
             )}
-          </div>
+              </div>
         );
       case 'custom':
         return (
@@ -1304,12 +1334,12 @@ const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRem
                   <div>
                     <h3 onClick={() => handleCustomListClick(list.id)} className="text-lg font-semibold text-slate-100 hover:text-cyan-400 cursor-pointer inline-block">{list.name}</h3>
                     {list.description && <p className="text-xs text-slate-400 mt-0.5">{list.description}</p>}
-                  </div>
+        </div>
                   <div className="flex items-center space-x-2">
                     <button onClick={() => navigate(`/mylists/${list.id}?edit=true`)} className="p-1.5 text-slate-400 hover:text-cyan-400 transition-colors rounded-md hover:bg-slate-700"><PencilIcon className="w-4 h-4"/></button>
                     <button onClick={() => handleDeleteCustomList(list.id)} className="p-1.5 text-red-500 hover:text-red-400 transition-colors rounded-md hover:bg-slate-700"><TrashIcon className="w-4 h-4"/></button>
-                  </div>
-                </div>
+                        </div>
+                        </div>
                 <p className="text-xs text-slate-500">
                   {list.items.length} item{list.items.length !== 1 ? 's' : ''} &bull; 
                   Last updated: {new Date(list.updatedAt).toLocaleDateString()}
@@ -1319,12 +1349,12 @@ const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRem
                     {list.items.slice(0, 5).map(item => (
                        <div key={`${item.id}-${item.media_type}`} className="w-10 h-14 rounded border-2 border-slate-700 overflow-hidden flex-shrink-0 bg-slate-700">
                          <PosterImage path={item.poster_path} alt={item.title || item.name || ""} className="w-full h-full object-cover"/>
-                       </div>
+                    </div>
                     ))}
                     {list.items.length > 5 && <span className="flex items-center justify-center w-10 h-14 rounded-full bg-slate-600 text-xs text-slate-300 border-2 border-slate-700 z-10">+{list.items.length - 5}</span>}
-                  </div>
-                )}
-              </div>
+                        </div>
+                    )}
+                </div>
             )) : <p className="text-slate-400 text-center py-8">You haven't created any custom lists yet.</p>}
           </div>
         );
@@ -1354,7 +1384,7 @@ const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRem
             </button>
           ))}
         </nav>
-      </div>
+        </div>
       
       <div>{renderTabContent()}</div>
     </div>
@@ -1515,7 +1545,7 @@ const PersonDetailPage: React.FC<PersonDetailPageProps> = () => { // Removed unu
               {personDetails.birthday && <p><strong className="text-slate-400">Born:</strong> {new Date(personDetails.birthday).toLocaleDateString()} {personDetails.place_of_birth && `in ${personDetails.place_of_birth}`}</p>}
               {personDetails.deathday && <p><strong className="text-slate-400">Died:</strong> {new Date(personDetails.deathday).toLocaleDateString()}</p>}
               {personDetails.known_for_department && <p><strong className="text-slate-400">Known for:</strong> {personDetails.known_for_department}</p>}
-            </div>
+      </div>
           )}
         </div>
       </div>
@@ -1606,7 +1636,7 @@ const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist }) => {
         // Handle error display to user if necessary
       }
     };
-    
+
     const handleCardClick = (item: MediaItem | RankedItem) => {
         if (item.media_type) navigate(`/media/${item.media_type}/${item.id}`);
     };
@@ -1642,8 +1672,8 @@ const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist }) => {
           <h1 className="text-3xl font-bold text-slate-100">{displayName}</h1>
           {/* Placeholder for bio or other user info */}
           <p className="text-sm text-slate-400">Member since {memberSince} &bull; {seenList.length} items rated</p>
-        </div>
-      </div>
+                </div>
+            </div>
       <button 
         onClick={handleSignOut} 
         disabled={authLoading}
@@ -1670,12 +1700,14 @@ const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist }) => {
       {/* Recent Activity Section */}
                     <div>
         <h2 className="text-xl font-semibold text-slate-200 mb-3">Recent Activity</h2>
-        {userListService.getRankedList()
-          .sort((a, b) => new Date(b.ratedAt).getTime() - new Date(a.ratedAt).getTime())
-          .slice(0, 5)
-          .map(item => (
-            <RatedMediaCard key={item.id} item={item} onClick={handleCardClick} />
-          ))}
+        <div className="space-y-4"> {/* Added this div with space-y-4 */}
+          {userListService.getRankedList()
+            .sort((a, b) => new Date(b.ratedAt).getTime() - new Date(a.ratedAt).getTime())
+            .slice(0, 5)
+            .map(item => (
+              <RatedMediaCard key={item.id} item={item} onClick={handleCardClick} />
+            ))}
+        </div> {/* Closing the added div */}
       </div>
 
       {/* Placeholder for Friends Activity, Achievements, etc. */}
