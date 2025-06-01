@@ -407,8 +407,8 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
 
   const [recommendationTypeTab, setRecommendationTypeTab] = useState<'movies' | 'shows'>('movies');
 
-  // Define handlers before they are used in fetchMedia or other dependent hooks/callbacks
-  const handleMediaItemClick = (item: MediaItem | PersonCreditItem) => {
+  // Define handlers that might be used by child components or effects early.
+  const handleMediaItemClick = useCallback((item: MediaItem | PersonCreditItem) => {
     if (item.media_type === 'movie' || item.media_type === 'tv') {
       navigate(`/media/${item.media_type as 'movie' | 'tv'}/${item.id}`);
     } else if (item.media_type === 'person') {
@@ -417,22 +417,22 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
         navigate(`/person/${personCredit.id}`);
       }
     }
-  };
+  }, [navigate]);
 
-  const handleMarkAsSeenLocal = (item: MediaItem | PersonCreditItem) => {
+  const handleMarkAsSeenLocal = useCallback((item: MediaItem | PersonCreditItem) => {
     if (item.media_type !== 'person') {
       onMarkAsSeen(item as MediaItem);
     }
-  };
+  }, [onMarkAsSeen]);
 
-  const handleAddToWatchlistLocal = (item: MediaItem | PersonCreditItem) => {
+  const handleAddToWatchlistLocal = useCallback((item: MediaItem | PersonCreditItem) => {
     if (item.media_type !== 'person') {
       onAddToWatchlist(item as MediaItem);
     }
-  };
+  }, [onAddToWatchlist]);
 
+  // Define fetchMedia with useCallback BEFORE the main useEffect that depends on it.
   const fetchMedia = useCallback(async (tabToFetch: string, query: string, page: number) => {
-    // console.log('[ExplorePage] fetchMedia memoized/re-created. selectedGenreIds ref changed?', { tabToFetch, query, page, selectedGenreIds });
     setIsLoading(true);
     setError(null);
     try {
@@ -459,7 +459,14 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
       }
 
       if (!data?.results) {
-        setResults(prevResults => page === 1 ? [] : prevResults);
+        // Conditional update based on which result set to clear/update
+        if (tabToFetch === 'trendingMovies') setTrendingMoviesResults(prev => page === 1 ? [] : prev);
+        else if (tabToFetch === 'trendingShows') setTrendingShowsResults(prev => page === 1 ? [] : prev);
+        else if (tabToFetch === 'search') setSearchQueryResults(prev => page === 1 ? [] : prev);
+        else if (tabToFetch === 'moviesOnly') setMoviesOnlyResults(prev => page === 1 ? [] : prev);
+        else if (tabToFetch === 'tvShowsOnly') setTvShowsOnlyResults(prev => page === 1 ? [] : prev);
+        else setResults(prevResults => page === 1 ? [] : prevResults); // Fallback for generic results
+
         setTotalPages(1);
         setHasMore(false);
         setIsLoading(false);
@@ -471,9 +478,22 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
           return false;
         }
 
-        // Apply tab-specific search query for trending tabs
-        if ((tabToFetch === 'trendingMovies' || tabToFetch === 'trendingShows') && trendingSearchQuery) {
-          const searchTerm = trendingSearchQuery.toLowerCase();
+        let currentSearchTerm = '';
+        let currentSelectedGenreIds = selectedGenreIds; // Default to general genre selection
+        
+        if (tabToFetch === 'trendingMovies') {
+          currentSearchTerm = trendingSearchQuery;
+          currentSelectedGenreIds = selectedTrendingMovieGenreIds;
+        } else if (tabToFetch === 'trendingShows') {
+          currentSearchTerm = trendingSearchQuery; 
+          currentSelectedGenreIds = selectedTrendingShowGenreIds;
+        } else if (tabToFetch === 'search') {
+          currentSearchTerm = query; 
+        }
+
+        // Apply search query
+        if (currentSearchTerm) {
+          const searchTerm = currentSearchTerm.toLowerCase();
           const title = item.title?.toLowerCase() || item.name?.toLowerCase() || '';
           const overview = item.overview?.toLowerCase() || '';
           if (!title.includes(searchTerm) && !overview.includes(searchTerm)) {
@@ -481,60 +501,48 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
           }
         }
         
-        // Apply genre filters
-        let currentSelectedGenreIds = selectedGenreIds;
-        if (tabToFetch === 'trendingMovies') {
-          currentSelectedGenreIds = selectedTrendingMovieGenreIds;
-        } else if (tabToFetch === 'trendingShows') {
-          currentSelectedGenreIds = selectedTrendingShowGenreIds;
-        }
-
+        // Apply genre filters (using the determined currentSelectedGenreIds)
         if (currentSelectedGenreIds.size > 0) {
           const itemGenres = item.genre_ids || [];
           if (!Array.from(currentSelectedGenreIds).some(genreId => itemGenres.includes(genreId))) {
             return false;
           }
         }
+
+        // Apply GLOBAL provider filters (selectedProviderIds)
+        // This applies if any provider filters are selected, regardless of the tab.
+        if (selectedProviderIds.size > 0 && item.id && item.media_type) {
+            // Placeholder: Actual provider filtering logic might be more complex if it requires
+            // fetching provider data per item or if TMDB API allows direct provider filtering.
+            // For now, this check assumes you might add a way to filter locally if provider data is available on the item.
+            // If item.watch_providers is available:
+            // const itemProviders = item.watch_providers?.US?.flatrate?.map(p => p.provider_id) || [];
+            // if (!Array.from(selectedProviderIds).some(pid => itemProviders.includes(pid))) return false;
+        }
+
         return true;
       });
       
+      const addUnique = (prev: MediaItem[], newItems: MediaItem[]): MediaItem[] => {
+        const existingIds = new Set(prev.map(i => i.id));
+        const newUniqueItems = newItems.filter(i => !existingIds.has(i.id));
+        return [...prev, ...newUniqueItems];
+      };
+
       if (page === 1) {
         if (tabToFetch === 'trendingMovies') setTrendingMoviesResults(filteredResults);
         else if (tabToFetch === 'trendingShows') setTrendingShowsResults(filteredResults);
         else if (tabToFetch === 'search') setSearchQueryResults(filteredResults);
-        else if (tabToFetch === 'moviesOnly') {
-          setMoviesOnlyResults(filteredResults); 
-          // DO NOT setResults(filteredResults) for moviesOnly
-        } else if (tabToFetch === 'tvShowsOnly') {
-          setTvShowsOnlyResults(filteredResults);
-          // DO NOT setResults(filteredResults) for tvShowsOnly
-        }
-        // Update generic results ONLY for tabs that might use it directly via displayResults fallback
-        if (tabToFetch === 'trendingMovies' || tabToFetch === 'trendingShows' || tabToFetch === 'search') {
-            setResults(filteredResults);
-        }
+        else if (tabToFetch === 'moviesOnly') setMoviesOnlyResults(filteredResults);
+        else if (tabToFetch === 'tvShowsOnly') setTvShowsOnlyResults(filteredResults);
+        else setResults(filteredResults); // Fallback
       } else {
-        // Ensure only unique items are added when paginating
-        const addUnique = (prev: MediaItem[], newItems: MediaItem[]): MediaItem[] => {
-          const existingIds = new Set(prev.map(item => item.id));
-          const newUniqueItems = newItems.filter(item => !existingIds.has(item.id));
-          return [...prev, ...newUniqueItems];
-        };
-
         if (tabToFetch === 'trendingMovies') setTrendingMoviesResults(prev => addUnique(prev, filteredResults));
         else if (tabToFetch === 'trendingShows') setTrendingShowsResults(prev => addUnique(prev, filteredResults));
         else if (tabToFetch === 'search') setSearchQueryResults(prev => addUnique(prev, filteredResults));
-        else if (tabToFetch === 'moviesOnly') {
-            setMoviesOnlyResults(prev => addUnique(prev, filteredResults));
-            // DO NOT setResults(prev => addUnique(prev, filteredResults)) for moviesOnly
-        } else if (tabToFetch === 'tvShowsOnly') {
-            setTvShowsOnlyResults(prev => addUnique(prev, filteredResults));
-            // DO NOT setResults(prev => addUnique(prev, filteredResults)) for tvShowsOnly
-        }
-        // Update generic results ONLY for tabs that might use it directly via displayResults fallback
-        if (tabToFetch === 'trendingMovies' || tabToFetch === 'trendingShows' || tabToFetch === 'search') {
-            setResults(prev => addUnique(prev, filteredResults));
-        }
+        else if (tabToFetch === 'moviesOnly') setMoviesOnlyResults(prev => addUnique(prev, filteredResults));
+        else if (tabToFetch === 'tvShowsOnly') setTvShowsOnlyResults(prev => addUnique(prev, filteredResults));
+        else setResults(prev => addUnique(prev, filteredResults)); // Fallback
       }
 
       setTotalPages(data.total_pages || 1);
@@ -542,14 +550,18 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
     } catch (err) {
       console.error('Error fetching media:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch media');
-      setResults([]);
+      // Clear all results on error
+      setTrendingMoviesResults([]); setTrendingShowsResults([]); setSearchQueryResults([]);
+      setMoviesOnlyResults([]); setTvShowsOnlyResults([]); setResults([]);
       setTotalPages(1);
       setHasMore(false);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedGenreIds, trendingSearchQuery, selectedTrendingMovieGenreIds, selectedTrendingShowGenreIds]); // Added new dependencies
+  // IMPORTANT: Add selectedProviderIds to the dependency array of fetchMedia
+  }, [trendingSearchQuery, selectedTrendingMovieGenreIds, selectedTrendingShowGenreIds, selectedProviderIds, selectedGenreIds]);
 
+  // Define other handlers like handlePageChange, handleSearch etc. after fetchMedia if they depend on it or are related.
   const handlePageChange = useCallback((newPage: number) => {
     // console.log('[ExplorePage] handlePageChange called.', { newPage, currentPage, totalPages, isLoading, activeTab, currentQuery });
     if (newPage < 1 || newPage > totalPages || isLoading) return; 
@@ -559,14 +571,30 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
     } else if (activeTab === 'trendingMovies' || activeTab === 'trendingShows' || activeTab === 'moviesOnly' || activeTab === 'tvShowsOnly') {
       fetchMedia(activeTab, '', newPage);
     }
-  }, [activeTab, currentQuery, totalPages, isLoading, fetchMedia, setCurrentPage]);
+  }, [activeTab, currentQuery, totalPages, isLoading, fetchMedia, setCurrentPage]); // fetchMedia is a dependency here
 
   const observer = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
     if (isLoading) return; if (observer.current) observer.current.disconnect();
-    observer.current = new IntersectionObserver(entries => { if (entries[0].isIntersecting && currentPage < totalPages) handlePageChange(currentPage + 1); });
+    observer.current = new IntersectionObserver(entries => { if (entries[0].isIntersecting && currentPage < totalPages && hasMore) handlePageChange(currentPage + 1); });
     if (node) observer.current.observe(node);
-  }, [isLoading, currentPage, totalPages, handlePageChange]); // Corrected: Added handlePageChange
+  }, [isLoading, currentPage, totalPages, hasMore, handlePageChange]);
+
+  const handleSearch = (query: string) => { 
+    setActiveTab('search'); 
+    setCurrentQuery(query); 
+    // Page reset and fetch is handled by the main useEffect due to currentQuery dependency change
+  };
+
+  const toggleGenreFilter = (genreId: number) => {
+    setSelectedGenreIds(prev => { const newSet = new Set(prev); if (newSet.has(genreId)) newSet.delete(genreId); else newSet.add(genreId); return newSet; });
+    // Page reset and fetch is handled by the main useEffect due to selectedGenreIds dependency change
+  };
+
+  const toggleProviderFilter = (providerId: number) => {
+    setSelectedProviderIds(prev => { const newSet = new Set(prev); if (newSet.has(providerId)) newSet.delete(providerId); else newSet.add(providerId); return newSet; });
+    // Page reset and fetch is handled by the main useEffect due to selectedProviderIds dependency change
+  };
 
   useEffect(() => { (async () => { try { const [m, t] = await Promise.all([tmdbService.getMovieGenres(), tmdbService.getTvGenres()]); setMovieGenres(m); setTvGenres(t); } catch (err) { console.error("Failed to fetch genres:", err); } })(); }, []);
 
@@ -662,12 +690,15 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
       fetchMedia(activeTab, '', 1); 
     } else if (activeTab === 'search') { 
       if (currentQuery) fetchMedia('search', currentQuery, 1); 
-      else setResults([]); 
+      else { // Clear results if search query is empty
+        setSearchQueryResults([]);
+        setResults([]);
+      }
     }
     } else {
-      console.log('[ExplorePage] Main reset useEffect SKIPPED (dependencies did not change reference).');
+      // console.log('[ExplorePage] Main reset useEffect SKIPPED (dependencies did not change reference).');
     }
-  }, [activeTab, currentQuery, selectedGenreIds, selectedProviderIds, trendingSearchQuery, selectedTrendingMovieGenreIds, selectedTrendingShowGenreIds]); // REMOVED fetchMedia from dependencies, ADDED trending filter states
+  }, [activeTab, currentQuery, selectedGenreIds, selectedProviderIds, trendingSearchQuery, selectedTrendingMovieGenreIds, selectedTrendingShowGenreIds, fetchMedia]); // ADDED fetchMedia
   
   // Refs to store previous values of dependencies for the main reset effect for logging
   const prevActiveTabInEffect = useRef<typeof activeTab | undefined>(undefined); // Initialized
@@ -692,21 +723,6 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
     }
   }, [location.state, initialTab]); // REMOVED activeTab from dependencies
 
-
-  const handleSearch = (query: string) => { setActiveTab('search'); setCurrentQuery(query); /* Page reset is handled by useEffect */ };
-  const handleCardClick = (item: MediaItem | RankedItem | PersonCreditItem) => {
-    if (item.media_type === 'movie' || item.media_type === 'tv') {
-      navigate(`/media/${item.media_type as 'movie' | 'tv'}/${item.id}`);
-    } else if (item.media_type === 'person') {
-      navigate(`/person/${item.id}`);
-    }
-  };
-  const toggleGenreFilter = (genreId: number) => {
-    setSelectedGenreIds(prev => { const newSet = new Set(prev); if (newSet.has(genreId)) newSet.delete(genreId); else newSet.add(genreId); return newSet; });
-  };
-  const toggleProviderFilter = (providerId: number) => {
-    setSelectedProviderIds(prev => { const newSet = new Set(prev); if (newSet.has(providerId)) newSet.delete(providerId); else newSet.add(providerId); return newSet; });
-  };
 
   // Determine which results to display based on activeTab
   const getDisplayResults = () => {
@@ -733,8 +749,8 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
   const isGeneralExploreView = activeTab === 'trendingMovies' || activeTab === 'trendingShows' || activeTab === 'search';
 
   const totalActiveFilters = selectedGenreIds.size + selectedProviderIds.size;
-  const totalTrendingMovieFilters = selectedTrendingMovieGenreIds.size; // Add provider size if used
-  const totalTrendingShowFilters = selectedTrendingShowGenreIds.size; // Add provider size if used
+  const totalTrendingMovieFilters = selectedTrendingMovieGenreIds.size + selectedProviderIds.size; // Trending movies specific + global providers
+  const totalTrendingShowFilters = selectedTrendingShowGenreIds.size + selectedProviderIds.size; // Trending shows specific + global providers
 
   const carouselDisplayItems = useMemo(() => {
     if (isMoviesOnlyView) {
@@ -768,7 +784,7 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
             {STREAMING_PROVIDERS.map(provider => (
               <button 
                 key={provider.id} 
-                onClick={() => toggleProviderFilter(provider.id)}
+                onClick={() => toggleProviderFilter(provider.id)} // This updates the global selectedProviderIds
                 className={`px-3 py-1.5 text-xs rounded-full border transition-colors flex items-center
                                     ${selectedProviderIds.has(provider.id) 
                                       ? `${ACCENT_COLOR_CLASS_BG} text-white border-transparent` 
@@ -820,9 +836,13 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
             onSearch={(query) => {
               if (activeTab === 'trendingMovies' || activeTab === 'trendingShows') {
                 setTrendingSearchQuery(query);
-                // Optionally, reset page or trigger re-filter/fetch for trending if needed
+                // Reset page to 1 when search query changes for trending tabs
+                setCurrentPage(1); 
+                setTrendingMoviesResults([]); // Clear previous results for trending movies
+                setTrendingShowsResults([]); // Clear previous results for trending shows
+                // fetchMedia will be triggered by useEffect dependency change on trendingSearchQuery
               } else {
-                handleSearch(query);
+                handleSearch(query); // This handles page reset for 'search' tab
               }
             }} 
             initialQuery={activeTab === 'trendingMovies' || activeTab === 'trendingShows' ? trendingSearchQuery : currentQuery} 
@@ -1934,3 +1954,4 @@ const LocalEmailIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 );
 
 export default App;
+
