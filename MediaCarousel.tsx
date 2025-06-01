@@ -142,7 +142,7 @@ const MediaCarousel: React.FC<MediaCarouselProps> = ({
         <div 
           className="flex transition-transform duration-500 ease-in-out cursor-grab active:cursor-grabbing"
           style={{ 
-            transform: `translateX(-${currentIndex * itemWidthPercentage}%)`,
+            transform: `translateX(-${currentIndex * 224}px)`,
             touchAction: 'pan-y'
           }}
           onTouchStart={handleTouchStart}
@@ -154,7 +154,7 @@ const MediaCarousel: React.FC<MediaCarouselProps> = ({
           {items.map((item) => (
             <div 
               key={`${item.id}-${item.media_type}`}
-              className="flex-shrink-0 flex-grow-0 basis-1/4 px-1 pb-2 select-none" // Reduced pb slightly to pb-2
+              className="flex-shrink-0 flex-grow-0 w-[224px] h-[336px] px-1 pb-2 select-none aspect-[2/3]"
             >
               <MediaCard 
                 item={item} 

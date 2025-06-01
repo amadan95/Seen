@@ -57,10 +57,37 @@ export const PosterImage: React.FC<PosterImageProps> = ({ path, alt, className, 
       </div>
     );
   }
+
+  const incomingClassName = className || '';
+  
+  // Core classes that PosterImage itself defines for layout and fit.
+  const baseStyling = ['w-full', 'h-full', 'object-cover'];
+
+  // Add default rounding if not specified in incomingClassName by a rounded-* class.
+  if (!/\brounded-\S+\b/.test(incomingClassName)) {
+    baseStyling.push('rounded-lg');
+  }
+
+  // Clean incomingClassName: remove classes controlled by PosterImage or potentially conflicting.
+  // Keep other utility classes (e.g., margins, specific rounding if present, etc.).
+  const additionalUserClasses = incomingClassName
+    .replace(/\bobject-(cover|contain|fill|none|scale-down)\b/g, '') // Remove any object-fit
+    .replace(/\bw-(full|auto|px|screen|svw|lvw|\d+(\/\d+)?)\b/g, '')      // Remove common width utilities
+    .replace(/\bh-(full|auto|px|screen|svh|lvh|\d+(\/\d+)?)\b/g, '')      // Remove common height utilities
+    .replace(/\s+/g, ' ') // Normalize spaces
+    .trim();
+
+  const finalImgClassName = [
+    ...baseStyling,
+    additionalUserClasses, // Add the cleaned additional classes from props
+    'transition-opacity duration-500 ease-in-out',
+    (loaded && !error) ? 'opacity-100' : 'opacity-0'
+  ].filter(Boolean).join(' ');
+  
   return <img 
     src={imageUrl} 
     alt={alt} 
-    className={`object-contain ${className?.includes('rounded-') ? '' : 'rounded-lg'} ${className} transition-opacity duration-500 ease-in-out ${loaded && !error ? 'opacity-100' : 'opacity-0'}`} 
+    className={finalImgClassName} 
   />;
 };
 
