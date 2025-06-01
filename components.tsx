@@ -494,10 +494,10 @@ export const WatchProviderDisplay: React.FC<WatchProviderDisplayProps> = ({ prov
           <h3 className="text-md font-semibold text-slate-300 mb-2">{section.title}</h3>
           <div className="flex flex-wrap gap-3">
             {section.list?.sort((a,b) => a.display_priority - b.display_priority).map(p => (
-              <a key={p.provider_id} href={providers.link || '#'} target="_blank" rel="noopener noreferrer"
-                className="flex items-center p-2 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors" title={`Watch ${itemTitle} on ${p.provider_name}`}>
-                <PosterImage path={p.logo_path} alt={p.provider_name} className="w-8 h-8 mr-2 rounded-md" size="w500" />
-                <span className="text-xs text-slate-200">{p.provider_name}</span>
+              <a key={p.provider_id} href={providers.link || '#'} target="_blank" rel="noopener noreferrer" title={p.provider_name}
+                className="flex items-center bg-slate-700/60 hover:bg-slate-600/80 p-2 rounded-lg transition-colors duration-150 shadow">
+                <img src={`${TMDB_IMAGE_BASE_URL_W500}${p.logo_path}`} alt={p.provider_name} className="w-10 h-10 object-contain rounded-md" />
+                <span className="text-xs text-slate-300 ml-2 hidden sm:inline">{p.provider_name}</span>
               </a>
             ))}
           </div>
