@@ -60,7 +60,7 @@ export const PosterImage: React.FC<PosterImageProps> = ({ path, alt, className, 
   return <img 
     src={imageUrl} 
     alt={alt} 
-    className={`object-cover ${className?.includes('rounded-') ? '' : 'rounded-lg'} ${className} transition-opacity duration-500 ease-in-out ${loaded && !error ? 'opacity-100' : 'opacity-0'}`} 
+    className={`object-contain ${className?.includes('rounded-') ? '' : 'rounded-lg'} ${className} transition-opacity duration-500 ease-in-out ${loaded && !error ? 'opacity-100' : 'opacity-0'}`} 
   />;
 };
 

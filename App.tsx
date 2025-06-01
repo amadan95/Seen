@@ -364,6 +364,15 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
   const [selectedProviderIds, setSelectedProviderIds] = useState<Set<number>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
 
+  // New state for Trending tabs
+  const [trendingSearchQuery, setTrendingSearchQuery] = useState('');
+  const [selectedTrendingMovieGenreIds, setSelectedTrendingMovieGenreIds] = useState<Set<number>>(new Set());
+  const [selectedTrendingShowGenreIds, setSelectedTrendingShowGenreIds] = useState<Set<number>>(new Set());
+  // const [selectedTrendingMovieProviderIds, setSelectedTrendingMovieProviderIds] = useState<Set<number>>(new Set()); // Example if adding provider filters
+  // const [selectedTrendingShowProviderIds, setSelectedTrendingShowProviderIds] = useState<Set<number>>(new Set()); // Example if adding provider filters
+  const [showTrendingMovieFilters, setShowTrendingMovieFilters] = useState(false);
+  const [showTrendingShowFilters, setShowTrendingShowFilters] = useState(false);
+
   // --- BEGIN DIAGNOSTIC LOGGING ---
   // const renderCount = useRef(0);
   // const selectedGenreIdsRefForLogging = useRef(selectedGenreIds);
@@ -461,9 +470,28 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
         if (item.media_type !== 'movie' && item.media_type !== 'tv') {
           return false;
         }
-        if (selectedGenreIds.size > 0) {
+
+        // Apply tab-specific search query for trending tabs
+        if ((tabToFetch === 'trendingMovies' || tabToFetch === 'trendingShows') && trendingSearchQuery) {
+          const searchTerm = trendingSearchQuery.toLowerCase();
+          const title = item.title?.toLowerCase() || item.name?.toLowerCase() || '';
+          const overview = item.overview?.toLowerCase() || '';
+          if (!title.includes(searchTerm) && !overview.includes(searchTerm)) {
+            return false;
+          }
+        }
+        
+        // Apply genre filters
+        let currentSelectedGenreIds = selectedGenreIds;
+        if (tabToFetch === 'trendingMovies') {
+          currentSelectedGenreIds = selectedTrendingMovieGenreIds;
+        } else if (tabToFetch === 'trendingShows') {
+          currentSelectedGenreIds = selectedTrendingShowGenreIds;
+        }
+
+        if (currentSelectedGenreIds.size > 0) {
           const itemGenres = item.genre_ids || [];
-          if (!Array.from(selectedGenreIds).some(genreId => itemGenres.includes(genreId))) {
+          if (!Array.from(currentSelectedGenreIds).some(genreId => itemGenres.includes(genreId))) {
             return false;
           }
         }
@@ -520,7 +548,7 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [selectedGenreIds]); // Corrected dependency array for fetchMedia
+  }, [selectedGenreIds, trendingSearchQuery, selectedTrendingMovieGenreIds, selectedTrendingShowGenreIds]); // Added new dependencies
 
   const handlePageChange = useCallback((newPage: number) => {
     // console.log('[ExplorePage] handlePageChange called.', { newPage, currentPage, totalPages, isLoading, activeTab, currentQuery });
@@ -583,7 +611,21 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
     //   "Effect\'s prev selectedGenreIds:", prevSelectedGenreIdsInEffect.current
     // );
 
-    if (prevSelectedGenreIdsInEffect.current !== selectedGenreIds || prevActiveTabInEffect.current !== activeTab || prevCurrentQueryInEffect.current !== currentQuery || prevSelectedProviderIdsInEffect.current !== selectedProviderIds) {
+    if (
+      prevActiveTabInEffect.current !== activeTab || 
+      prevCurrentQueryInEffect.current !== currentQuery || 
+      prevSelectedGenreIdsInEffect.current !== selectedGenreIds || 
+      prevSelectedProviderIdsInEffect.current !== selectedProviderIds ||
+      // Add checks for trending-specific filters if they should trigger a full reset
+      (activeTab === 'trendingMovies' && (
+        prevTrendingSearchQueryInEffect.current !== trendingSearchQuery ||
+        prevSelectedTrendingMovieGenreIdsInEffect.current !== selectedTrendingMovieGenreIds
+      )) ||
+      (activeTab === 'trendingShows' && (
+        prevTrendingSearchQueryInEffect.current !== trendingSearchQuery || // Assuming same search query for both trending
+        prevSelectedTrendingShowGenreIdsInEffect.current !== selectedTrendingShowGenreIds
+      ))
+    ) {
       // console.log('[ExplorePage] Main reset useEffect RUNNING. Dependencies that changed:', {
       //   activeTabChanged: prevActiveTabInEffect.current !== activeTab,
       //   currentQueryChanged: prevCurrentQueryInEffect.current !== currentQuery,
@@ -599,6 +641,10 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
       prevCurrentQueryInEffect.current = currentQuery;
       prevSelectedGenreIdsInEffect.current = selectedGenreIds;
       prevSelectedProviderIdsInEffect.current = selectedProviderIds;
+      // Store trending-specific deps
+      prevTrendingSearchQueryInEffect.current = trendingSearchQuery;
+      prevSelectedTrendingMovieGenreIdsInEffect.current = selectedTrendingMovieGenreIds;
+      prevSelectedTrendingShowGenreIdsInEffect.current = selectedTrendingShowGenreIds;
       // --- END DIAGNOSTIC LOGGING FOR RESET EFFECT ---
 
     setCurrentPage(1); 
@@ -621,13 +667,17 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
     } else {
       console.log('[ExplorePage] Main reset useEffect SKIPPED (dependencies did not change reference).');
     }
-  }, [activeTab, currentQuery, selectedGenreIds, selectedProviderIds]); // REMOVED fetchMedia from dependencies
+  }, [activeTab, currentQuery, selectedGenreIds, selectedProviderIds, trendingSearchQuery, selectedTrendingMovieGenreIds, selectedTrendingShowGenreIds]); // REMOVED fetchMedia from dependencies, ADDED trending filter states
   
   // Refs to store previous values of dependencies for the main reset effect for logging
   const prevActiveTabInEffect = useRef<typeof activeTab | undefined>(undefined); // Initialized
   const prevCurrentQueryInEffect = useRef<typeof currentQuery | undefined>(undefined); // Initialized
   const prevSelectedGenreIdsInEffect = useRef<Set<number> | undefined>(undefined); // Re-add this line that was accidentally removed. It should be after the diagnostic logging section was commented out.
-  const prevSelectedProviderIdsInEffect = useRef<typeof selectedProviderIds | undefined>(undefined); // Initialized
+  const prevSelectedProviderIdsInEffect = useRef<typeof selectedProviderIds | undefined>(undefined);
+  // New refs for trending-specific filters
+  const prevTrendingSearchQueryInEffect = useRef<typeof trendingSearchQuery | undefined>(undefined);
+  const prevSelectedTrendingMovieGenreIdsInEffect = useRef<Set<number> | undefined>(undefined);
+  const prevSelectedTrendingShowGenreIdsInEffect = useRef<Set<number> | undefined>(undefined);
 
   
   useEffect(() => { // Sync activeTab with location state OR prop if it changes
@@ -683,6 +733,8 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
   const isGeneralExploreView = activeTab === 'trendingMovies' || activeTab === 'trendingShows' || activeTab === 'search';
 
   const totalActiveFilters = selectedGenreIds.size + selectedProviderIds.size;
+  const totalTrendingMovieFilters = selectedTrendingMovieGenreIds.size; // Add provider size if used
+  const totalTrendingShowFilters = selectedTrendingShowGenreIds.size; // Add provider size if used
 
   const carouselDisplayItems = useMemo(() => {
     if (isMoviesOnlyView) {
@@ -732,8 +784,20 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
       {/* Genre Filters */}
       { (activeTab === 'trendingMovies' || activeTab === 'trendingShows' || isMoviesOnlyView || isTvShowsOnlyView) && currentGenreList.length > 0 && (
         <div className="mb-4 pt-1"><h3 className="text-sm font-medium text-slate-400 mb-2">Filter by Genre:</h3><div className="flex flex-wrap gap-2">
-            {currentGenreList.slice(0, 10).map(genre => (<button key={genre.id} onClick={() => toggleGenreFilter(genre.id)}
-              className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${selectedGenreIds.has(genre.id) ? `${ACCENT_COLOR_CLASS_BG} text-white border-transparent` : `bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600 hover:${ACCENT_COLOR_CLASS_BORDER}`}`}>{genre.name}</button>))}
+            {currentGenreList.slice(0, 10).map(genre => (<button key={genre.id} onClick={() => {
+              if (activeTab === 'trendingMovies') {
+                setSelectedTrendingMovieGenreIds(prev => { const newSet = new Set(prev); if (newSet.has(genre.id)) newSet.delete(genre.id); else newSet.add(genre.id); return newSet; });
+              } else if (activeTab === 'trendingShows') {
+                setSelectedTrendingShowGenreIds(prev => { const newSet = new Set(prev); if (newSet.has(genre.id)) newSet.delete(genre.id); else newSet.add(genre.id); return newSet; });
+              } else {
+                toggleGenreFilter(genre.id);
+              }
+            }}
+              className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                (activeTab === 'trendingMovies' && selectedTrendingMovieGenreIds.has(genre.id)) ||
+                (activeTab === 'trendingShows' && selectedTrendingShowGenreIds.has(genre.id)) ||
+                (!(activeTab === 'trendingMovies' || activeTab === 'trendingShows') && selectedGenreIds.has(genre.id))
+                 ? `${ACCENT_COLOR_CLASS_BG} text-white border-transparent` : `bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600 hover:${ACCENT_COLOR_CLASS_BORDER}`}`}>{genre.name}</button>))}
         </div></div>
       )}
     </div>
@@ -748,29 +812,55 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
       {isRecommendationsView && <h2 className="text-3xl font-bold text-center my-6 text-white">Your Recommendations</h2>}
 
 
-      {/* Search Bar: Only for 'moviesOnly', 'tvShowsOnly' and 'search' tabs */}
-      {(isMoviesOnlyView || isTvShowsOnlyView || activeTab === 'search') && (
+      {/* Search Bar: Only for 'moviesOnly', 'tvShowsOnly' and 'search' tabs */
+      /* MODIFIED: Also show for trending tabs */}
+      {(isMoviesOnlyView || isTvShowsOnlyView || activeTab === 'search' || activeTab === 'trendingMovies' || activeTab === 'trendingShows') && (
         <div className="w-full max-w-xl mx-auto my-4 px-4">
-          <SearchBar onSearch={handleSearch} initialQuery={currentQuery} />
+          <SearchBar 
+            onSearch={(query) => {
+              if (activeTab === 'trendingMovies' || activeTab === 'trendingShows') {
+                setTrendingSearchQuery(query);
+                // Optionally, reset page or trigger re-filter/fetch for trending if needed
+              } else {
+                handleSearch(query);
+              }
+            }} 
+            initialQuery={activeTab === 'trendingMovies' || activeTab === 'trendingShows' ? trendingSearchQuery : currentQuery} 
+          />
         </div>
       )}
 
-      {/* Filter Button & Panel - Show for recommendations, moviesOnly, tvShowsOnly */}
-      {(isRecommendationsView || isMoviesOnlyView || isTvShowsOnlyView) && (
+      {/* Filter Button & Panel - Show for recommendations, moviesOnly, tvShowsOnly */
+      /* MODIFIED: Also show for trending tabs */}
+      {(isRecommendationsView || isMoviesOnlyView || isTvShowsOnlyView || activeTab === 'trendingMovies' || activeTab === 'trendingShows') && (
         <div className="w-full max-w-3xl mx-auto px-4">
           <button
-            onClick={() => setShowFilters(prev => !prev)}
+            onClick={() => {
+              if (activeTab === 'trendingMovies') setShowTrendingMovieFilters(prev => !prev);
+              else if (activeTab === 'trendingShows') setShowTrendingShowFilters(prev => !prev);
+              else setShowFilters(prev => !prev);
+            }}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 mb-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg shadow-md transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-cyan-500"
           >
             <FilterIcon className="w-5 h-5" />
             <span>Filters</span>
-            {totalActiveFilters > 0 && (
+            {(activeTab === 'trendingMovies' && totalTrendingMovieFilters > 0) && (
+              <span className="bg-cyan-500 text-xs font-semibold text-slate-900 px-2 py-0.5 rounded-full">
+                {totalTrendingMovieFilters}
+              </span>
+            )}
+            {(activeTab === 'trendingShows' && totalTrendingShowFilters > 0) && (
+              <span className="bg-cyan-500 text-xs font-semibold text-slate-900 px-2 py-0.5 rounded-full">
+                {totalTrendingShowFilters}
+              </span>
+            )}
+            {!(activeTab === 'trendingMovies' || activeTab === 'trendingShows') && totalActiveFilters > 0 && (
               <span className="bg-cyan-500 text-xs font-semibold text-slate-900 px-2 py-0.5 rounded-full">
                 {totalActiveFilters}
               </span>
             )}
           </button>
-          {showFilters && <FilterSection />}
+          {((activeTab === 'trendingMovies' && showTrendingMovieFilters) || (activeTab === 'trendingShows' && showTrendingShowFilters) || (!(activeTab === 'trendingMovies' || activeTab === 'trendingShows') && showFilters)) && <FilterSection />}
                     </div>
       )}
 
