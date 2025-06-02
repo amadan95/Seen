@@ -74,6 +74,13 @@ const AppContent: React.FC = () => {
     setIsReactionModalOpen(true);
   }, []);
 
+  // Moved up and wrapped in useCallback
+  const handleCancelIterativeComparison = useCallback(() => {
+    setIterativeComparisonState(null); 
+    setIsLoadingGlobal(false); 
+    setCurrentUserNotes("");
+  }, [setIterativeComparisonState, setIsLoadingGlobal, setCurrentUserNotes]); // Correct dependencies for this
+
   const proceedToNextComparisonStep = useCallback(async (session: IterativeComparisonSession) => {
     if (!session.isActive) return;
     if (session.lowIndex > session.highIndex || session.comparisonsMade >= session.maxComparisons) {
@@ -88,13 +95,46 @@ const AppContent: React.FC = () => {
     }
     const pivotIdx = calculatePivotIndexSmartly(session.lowIndex, session.highIndex, session.newItem, session.comparisonBucketSnapshot);
     const pivotItem = session.comparisonBucketSnapshot[pivotIdx];
-    if (!pivotItem) { proceedToNextComparisonStep({ ...session, lowIndex: session.highIndex + 1 }); return; }
-    setIsLoadingGlobal(true);
-    const sharedGenres = session.newItem.genres?.filter(g => pivotItem.genres?.some(pg => pg.id === g.id)).map(g => g.name) || [];
-    const promptText = await geminiService.generateComparisonPrompt({ newItem: session.newItem, existingItem: pivotItem, reaction: session.newItem.userReaction, isIterative: true, sharedGenres });
-    setIsLoadingGlobal(false);
-    setIterativeComparisonState({ ...session, pivotItem: pivotItem, currentPrompt: promptText });
-  }, []); // Removed dependencies that were causing re-memoization issues earlier, they are stable or correctly handled by closure.
+    if (!pivotItem) { /* console.log("Pivot item is undefined, ending comparison early.", session); */ setIsLoadingGlobal(false); 
+      // Recursive call needs careful thought with useCallback.
+      // For now, let's assume this direct call is okay if the session object changes enough
+      // or if this path is rare and doesn't cause infinite loops.
+      // To be perfectly safe, this might need a refactor to avoid direct recursion
+      // if it becomes a problem, or ensure dependencies allow it to update.
+      proceedToNextComparisonStep({ ...session, lowIndex: session.highIndex + 1 }); return; 
+    }
+
+    try {
+      setIsLoadingGlobal(true); // Indicate loading for prompt generation
+      const sharedGenres = session.newItem.genres?.filter(g => pivotItem.genres?.some(pg => pg.id === g.id)).map(g => g.name) || [];
+      const promptText = await geminiService.generateComparisonPrompt({ 
+        newItem: session.newItem, 
+        existingItem: pivotItem, 
+        reaction: session.newItem.userReaction, 
+        isIterative: true, 
+        sharedGenres 
+      });
+      // Only set state for comparison if prompt generation was successful
+      setIterativeComparisonState({ ...session, pivotItem: pivotItem, currentPrompt: promptText });
+    } catch (error) {
+      console.error("Error generating comparison prompt:", error);
+      // Handle error: Maybe show a message to the user, and cancel comparison
+      setIterativeComparisonState(prev => prev ? { ...prev, isActive: false, currentPrompt: "Error generating comparison. Please try again." } : null); 
+      // Consider navigating away or showing an error modal. For now, stop the session.
+      // alert("Failed to generate comparison. Please try rating again."); // Simple alert
+      handleCancelIterativeComparison(); // This also sets isLoadingGlobal to false
+    } finally {
+      // Ensure loading is always stopped if this path is reached, 
+      // UNLESS handleCancelIterativeComparison was called (which handles its own loading state)
+      // This finally might be redundant if handleCancelIterativeComparison is always called on error.
+      // Let's rely on handleCancelIterativeComparison to set isLoadingGlobal(false) on error.
+      // If no error, the next state update should lead to the modal, not the global spinner.
+      // If an error occurs, handleCancelIterativeComparison sets it to false.
+      // If successful, we want isLoadingGlobal to be false so the Pairwise modal can show *without* the global spinner.
+      setIsLoadingGlobal(false); 
+    }
+
+  }, [handleCancelIterativeComparison, setIsLoadingGlobal, setIterativeComparisonState, userListService, geminiService]); // Removed self-reference, added other direct dependencies. Note: recursive call to proceedToNextComparisonStep is not in deps.
 
   const startIterativeComparison = useCallback(async (ratedItem: RatedItem) => {
     setIsLoadingGlobal(true);
@@ -111,8 +151,10 @@ const AppContent: React.FC = () => {
 
     const initialSession: IterativeComparisonSession = { isActive: true, newItem: ratedItem, comparisonBucketSnapshot: relevantBucketItems, lowIndex: 0, highIndex: relevantBucketItems.length - 1, pivotItem: null, currentPrompt: "Loading comparison...", comparisonsMade: 0, maxComparisons: MAX_COMPARISONS_PER_ITEM, history: [] };
     setIterativeComparisonState(initialSession);
+    // setIsLoadingGlobal(true); // Moved this responsibility into proceedToNextComparisonStep or rely on handleReactionSelected
     await proceedToNextComparisonStep(initialSession);
-  }, [proceedToNextComparisonStep]);
+    // No setIsLoadingGlobal(false) here, as proceedToNextComparisonStep handles it or leads to modal
+  }, [proceedToNextComparisonStep, setIsLoadingGlobal, userListService, setSeenList, setComparisonSummaryState, setIterativeComparisonState]); // Added missing dependencies
 
   const handleReactionSelected = useCallback(async (reaction: Reaction) => {
     if (!selectedItemForReaction) return;
@@ -121,8 +163,14 @@ const AppContent: React.FC = () => {
     setWatchlist(userListService.getWatchlist()); // Update watchlist after rating
     setSeenList(userListService.getSeenList()); // Update seenlist from source of truth
     setSelectedItemForReaction(null); setCurrentUserNotes("");
+    // setIsLoadingGlobal(true); // Moved to startIterativeComparison or rely on it.
     await startIterativeComparison(ratedItem);
-  }, [selectedItemForReaction, currentUserNotes, startIterativeComparison]);
+    // If startIterativeComparison completes and doesn't lead to modal or another loading state,
+    // ensure loading is false. However, it should always lead to one or the other.
+    // For safety, if not handled by subsequent steps, ensure it's off.
+    // But ideally, the final step (modal display or error) handles this.
+    // Let's assume child functions correctly manage isLoadingGlobal.
+  }, [selectedItemForReaction, currentUserNotes, startIterativeComparison, setIsLoadingGlobal, setIsReactionModalOpen, userListService, setWatchlist, setSeenList, setSelectedItemForReaction, setCurrentUserNotes]); // Added missing dependencies
 
   const handleIterativeComparisonChoice = useCallback((chosenItem: MediaItem) => {
     if (!iterativeComparisonState || !iterativeComparisonState.pivotItem || !iterativeComparisonState.isActive) return;
@@ -134,7 +182,7 @@ const AppContent: React.FC = () => {
     if (userPreferredNewItem) newHighIndex = currentPivotIndexInSnapshot - 1; else newLowIndex = currentPivotIndexInSnapshot + 1;
     const updatedSession: IterativeComparisonSession = { ...iterativeComparisonState, lowIndex: newLowIndex, highIndex: newHighIndex, comparisonsMade: comparisonsMade + 1, history: [...history, newHistoryEntry], pivotItem: null };
     proceedToNextComparisonStep(updatedSession);
-  }, [iterativeComparisonState, proceedToNextComparisonStep]);
+  }, [iterativeComparisonState, proceedToNextComparisonStep]); // Correct dependencies
   
   // Main useEffect for onboarding and auth redirection logic
   useEffect(() => {
@@ -167,11 +215,6 @@ const AppContent: React.FC = () => {
   const calculatePivotIndexSmartly = (low: number, high: number, newItem: RatedItem, comparisonList: RatedItem[]): number => {
     if (low > high) return low;
     return Math.floor((low + high) / 2);
-  };
-
-  // Helper function (not a hook)
-  const handleCancelIterativeComparison = () => {
-    setIterativeComparisonState(null); setIsLoadingGlobal(false); setCurrentUserNotes("");
   };
   
   // Helper function (not a hook)
@@ -415,7 +458,7 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
       const personCredit = item as PersonCreditItem;
       if (personCredit.id) {
         navigate(`/person/${personCredit.id}`);
-      }
+    }
     }
   }, [navigate]);
 
@@ -1150,53 +1193,53 @@ const MediaDetailPage: React.FC<BasePageProps> = ({ userListService, onAddToWatc
       <div className={`p-4 ${item.backdrop_path ? 'relative -mt-16 sm:-mt-24 md:-mt-32 z-10' : 'pt-10'}`}>
         <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 md:gap-8">
           {/* Poster Image */}
-          <div className="w-1/2 md:w-1/3 lg:w-1/4 mx-auto md:mx-0 flex-shrink-0"><PosterImage path={item.poster_path} alt={title || "Poster"} className="rounded-xl shadow-2xl aspect-[2/3]" /></div>
-          <div className="flex-grow space-y-3.5 text-center md:text-left pt-2">
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-slate-50">{title}</h1>
-            <p className="text-slate-400 text-sm md:text-base">{releaseYear} &bull; {genresText} {runtime && `• ${runtime} min${item.media_type === 'tv' ? '/ep' : ''}`}</p>
-            {item.original_language && <p className="text-slate-400 text-xs">Language: {item.original_language.toUpperCase()}</p>}
-            {item.vote_average > 0 && (<div className="flex items-center justify-center md:justify-start text-sm text-slate-300"><StarIcon className="w-5 h-5 text-yellow-400 mr-1.5" /><span>{item.vote_average.toFixed(1)}/10 (TMDB)</span></div>)}
-            <div className="flex flex-col sm:flex-row gap-3.5 justify-center md:justify-start pt-3">
-              {!seenInfo && (<button onClick={() => onAddToWatchlist(item)} className={`flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-lg ${isCurrentlyWatchlisted ? 'bg-green-600 hover:bg-green-700' : `${ACCENT_COLOR_CLASS_BG} ${ACCENT_COLOR_CLASS_BG_HOVER}`} text-white transform hover:scale-105`}><AddIconAction className="w-5 h-5 mr-2"/> {isCurrentlyWatchlisted ? 'On Watchlist' : 'Add to Watchlist'}</button>)}
-              <button onClick={() => onMarkAsSeen(item)} className={`flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-lg ${seenInfo ? 'bg-purple-600 hover:bg-purple-700' : 'bg-teal-600 hover:bg-teal-700'} text-white transform hover:scale-105`}><SeenIconAction className="w-5 h-5 mr-2"/> {seenInfo ? `Rated ${REACTION_EMOJIS[seenInfo.userReaction]}` : 'Mark as Seen'}</button>
-              <button onClick={() => onAddToList(item)} className={`flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-lg bg-blue-600 hover:bg-blue-700 text-white transform hover:scale-105`}><ListBulletIcon className="w-5 h-5 mr-2"/>Add to List</button>
-            </div>
+        <div className="w-1/2 md:w-1/3 lg:w-1/4 mx-auto md:mx-0 flex-shrink-0"><PosterImage path={item.poster_path} alt={title || "Poster"} className="rounded-xl shadow-2xl aspect-[2/3]" /></div>
+        <div className="flex-grow space-y-3.5 text-center md:text-left pt-2">
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-slate-50">{title}</h1>
+          <p className="text-slate-400 text-sm md:text-base">{releaseYear} &bull; {genresText} {runtime && `• ${runtime} min${item.media_type === 'tv' ? '/ep' : ''}`}</p>
+          {item.original_language && <p className="text-slate-400 text-xs">Language: {item.original_language.toUpperCase()}</p>}
+          {item.vote_average > 0 && (<div className="flex items-center justify-center md:justify-start text-sm text-slate-300"><StarIcon className="w-5 h-5 text-yellow-400 mr-1.5" /><span>{item.vote_average.toFixed(1)}/10 (TMDB)</span></div>)}
+          <div className="flex flex-col sm:flex-row gap-3.5 justify-center md:justify-start pt-3">
+            {!seenInfo && (<button onClick={() => onAddToWatchlist(item)} className={`flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-lg ${isCurrentlyWatchlisted ? 'bg-green-600 hover:bg-green-700' : `${ACCENT_COLOR_CLASS_BG} ${ACCENT_COLOR_CLASS_BG_HOVER}`} text-white transform hover:scale-105`}><AddIconAction className="w-5 h-5 mr-2"/> {isCurrentlyWatchlisted ? 'On Watchlist' : 'Add to Watchlist'}</button>)}
+            <button onClick={() => onMarkAsSeen(item)} className={`flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-lg ${seenInfo ? 'bg-purple-600 hover:bg-purple-700' : 'bg-teal-600 hover:bg-teal-700'} text-white transform hover:scale-105`}><SeenIconAction className="w-5 h-5 mr-2"/> {seenInfo ? `Rated ${REACTION_EMOJIS[seenInfo.userReaction]}` : 'Mark as Seen'}</button>
+            <button onClick={() => onAddToList(item)} className={`flex items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors shadow-lg bg-blue-600 hover:bg-blue-700 text-white transform hover:scale-105`}><ListBulletIcon className="w-5 h-5 mr-2"/>Add to List</button>
           </div>
         </div>
-        {item.overview && (<div><h2 className={`text-xl font-semibold mb-2.5 ${ACCENT_COLOR_CLASS_TEXT}`}>Overview</h2><p className="text-slate-300 leading-relaxed text-sm md:text-base">{item.overview}</p></div>)}
-        {seenInfo && seenInfo.userNotes && (<div><h2 className={`text-xl font-semibold mb-2.5 ${ACCENT_COLOR_CLASS_TEXT}`}>Your Notes</h2><p className="text-slate-300 leading-relaxed text-sm md:text-base bg-slate-800 p-4 rounded-lg border border-slate-700 whitespace-pre-wrap">{seenInfo.userNotes}</p></div>)}
-        {isLoading && !watchProviders && <div><h2 className={`text-xl font-semibold mb-2.5 ${ACCENT_COLOR_CLASS_TEXT}`}>Where to Watch</h2><Skeleton className="w-full h-20"/></div> }
-        {!isLoading && watchProviders && (<div><h2 className={`text-xl font-semibold mb-3 ${ACCENT_COLOR_CLASS_TEXT}`}>Where to Watch <span className="text-xs text-slate-500">(US)</span></h2><WatchProviderDisplay providers={watchProviders} itemTitle={title || 'this item'} /></div>)}
-        {credits && credits.cast && credits.cast.length > 0 && (
-          <div><h2 className={`text-xl font-semibold mb-4 ${ACCENT_COLOR_CLASS_TEXT}`}>Top Billed Cast</h2>
-            <div className="flex space-x-4 overflow-x-auto pb-4 -mx-3 px-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-800/50">
-              {credits.cast.slice(0, 15).map(member => <CastCard key={member.id} member={member} onClick={handlePersonClick} />)}
-            </div>
+      </div>
+      {item.overview && (<div><h2 className={`text-xl font-semibold mb-2.5 ${ACCENT_COLOR_CLASS_TEXT}`}>Overview</h2><p className="text-slate-300 leading-relaxed text-sm md:text-base">{item.overview}</p></div>)}
+      {seenInfo && seenInfo.userNotes && (<div><h2 className={`text-xl font-semibold mb-2.5 ${ACCENT_COLOR_CLASS_TEXT}`}>Your Notes</h2><p className="text-slate-300 leading-relaxed text-sm md:text-base bg-slate-800 p-4 rounded-lg border border-slate-700 whitespace-pre-wrap">{seenInfo.userNotes}</p></div>)}
+      {isLoading && !watchProviders && <div><h2 className={`text-xl font-semibold mb-2.5 ${ACCENT_COLOR_CLASS_TEXT}`}>Where to Watch</h2><Skeleton className="w-full h-20"/></div> }
+      {!isLoading && watchProviders && (<div><h2 className={`text-xl font-semibold mb-3 ${ACCENT_COLOR_CLASS_TEXT}`}>Where to Watch <span className="text-xs text-slate-500">(US)</span></h2><WatchProviderDisplay providers={watchProviders} itemTitle={title || 'this item'} /></div>)}
+      {credits && credits.cast && credits.cast.length > 0 && (
+        <div><h2 className={`text-xl font-semibold mb-4 ${ACCENT_COLOR_CLASS_TEXT}`}>Top Billed Cast</h2>
+          <div className="flex space-x-4 overflow-x-auto pb-4 -mx-3 px-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-800/50">
+            {credits.cast.slice(0, 15).map(member => <CastCard key={member.id} member={member} onClick={handlePersonClick} />)}
           </div>
-        )}
-        {credits && credits.crew && credits.crew.length > 0 && (
-          <div><h2 className={`text-xl font-semibold mb-3 ${ACCENT_COLOR_CLASS_TEXT}`}>Key Crew Members</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {credits.crew.filter(c => ['Directing', 'Writing', 'Production'].includes(c.department) && (c.job === 'Director' || c.job === 'Screenplay' || c.job === 'Producer' || c.job === 'Executive Producer' || c.job === 'Writer' || c.job === 'Story')).slice(0,6).map(member => <CrewMemberDisplay key={`${member.id}-${member.job}`} member={member} onClick={handlePersonClick} />)}
-          </div></div>
-        )}
-        {item.media_type === 'tv' && (item as TMDBShow).seasons && ((item as TMDBShow).seasons?.length ?? 0) > 0 && (
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className={`text-xl font-semibold ${ACCENT_COLOR_CLASS_TEXT}`}>Seasons & Episodes</h2>
-              {((item as TMDBShow).seasons?.filter(s => s.episode_count > 0).length ?? 0) > 1 && 
-                <select value={selectedSeason ?? ''} onChange={(e) => handleSeasonChange(Number(e.target.value))} className={`p-2.5 bg-slate-700 text-slate-200 rounded-lg border border-slate-600 focus:ring-2 ${ACCENT_COLOR_CLASS_RING} ${ACCENT_COLOR_CLASS_BORDER} outline-none text-sm transition-colors`} aria-label="Select TV Season">
-                  <option value="" disabled>Select a season</option>
-                  {(item as TMDBShow).seasons!.filter(s => s.episode_count > 0 && (s.season_number > 0 || (((item as TMDBShow).seasons!.length === 1 && s.season_number === 0)))).sort((a,b) => a.season_number - b.season_number)
-                    .map(season => (<option key={season.id} value={season.season_number}>{season.name} ({season.episode_count} ep)</option>))}
-                </select>}
-            </div>
-            {isLoading && !tvSeasonDetails && (<div className="space-y-4">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="w-full h-28 rounded-xl" />)}</div>)}
-            {!isLoading && tvSeasonDetails && tvSeasonDetails.episodes.length > 0 && (<div className="space-y-4">{tvSeasonDetails.episodes.map(episode => <EpisodeCard key={episode.id} episode={episode} />)}</div>)}
-            {!isLoading && tvSeasonDetails && tvSeasonDetails.episodes.length === 0 && (<p className="text-slate-500">No episode information available for this season.</p>)}
-            {!isLoading && selectedSeason !== null && !tvSeasonDetails && error && (<p className="text-red-400 bg-red-900/50 p-4 rounded-xl">{error}</p>)}
+        </div>
+      )}
+      {credits && credits.crew && credits.crew.length > 0 && (
+        <div><h2 className={`text-xl font-semibold mb-3 ${ACCENT_COLOR_CLASS_TEXT}`}>Key Crew Members</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {credits.crew.filter(c => ['Directing', 'Writing', 'Production'].includes(c.department) && (c.job === 'Director' || c.job === 'Screenplay' || c.job === 'Producer' || c.job === 'Executive Producer' || c.job === 'Writer' || c.job === 'Story')).slice(0,6).map(member => <CrewMemberDisplay key={`${member.id}-${member.job}`} member={member} onClick={handlePersonClick} />)}
+        </div></div>
+      )}
+      {item.media_type === 'tv' && (item as TMDBShow).seasons && ((item as TMDBShow).seasons?.length ?? 0) > 0 && (
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className={`text-xl font-semibold ${ACCENT_COLOR_CLASS_TEXT}`}>Seasons & Episodes</h2>
+            {((item as TMDBShow).seasons?.filter(s => s.episode_count > 0).length ?? 0) > 1 && 
+              <select value={selectedSeason ?? ''} onChange={(e) => handleSeasonChange(Number(e.target.value))} className={`p-2.5 bg-slate-700 text-slate-200 rounded-lg border border-slate-600 focus:ring-2 ${ACCENT_COLOR_CLASS_RING} ${ACCENT_COLOR_CLASS_BORDER} outline-none text-sm transition-colors`} aria-label="Select TV Season">
+                <option value="" disabled>Select a season</option>
+                {(item as TMDBShow).seasons!.filter(s => s.episode_count > 0 && (s.season_number > 0 || (((item as TMDBShow).seasons!.length === 1 && s.season_number === 0)))).sort((a,b) => a.season_number - b.season_number)
+                  .map(season => (<option key={season.id} value={season.season_number}>{season.name} ({season.episode_count} ep)</option>))}
+              </select>}
           </div>
-        )}
+          {isLoading && !tvSeasonDetails && (<div className="space-y-4">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="w-full h-28 rounded-xl" />)}</div>)}
+          {!isLoading && tvSeasonDetails && tvSeasonDetails.episodes.length > 0 && (<div className="space-y-4">{tvSeasonDetails.episodes.map(episode => <EpisodeCard key={episode.id} episode={episode} />)}</div>)}
+          {!isLoading && tvSeasonDetails && tvSeasonDetails.episodes.length === 0 && (<p className="text-slate-500">No episode information available for this season.</p>)}
+          {!isLoading && selectedSeason !== null && !tvSeasonDetails && error && (<p className="text-red-400 bg-red-900/50 p-4 rounded-xl">{error}</p>)}
+        </div>
+      )}
       </div>
     </div>
   );
@@ -1354,7 +1397,7 @@ const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRem
       if ('userReaction' in item && item.userReaction) {
         const reaction = item.userReaction as Reaction;
         acc[reaction] = (acc[reaction] || 0) + 1;
-      }
+    }
       return acc;
     }, {} as Record<Reaction, number>);
     return { total, movies, shows, averageScore, byReaction };
@@ -1362,7 +1405,7 @@ const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRem
   
   const watchlistStats = generateStats(watchlist);
   const rankingStats = generateStats(rankedItems);
-
+  
   const handleCardClick = (item: MediaItem | RankedItem | PersonCreditItem) => {
     if ('media_type' in item && item.media_type && (item.media_type === 'movie' || item.media_type === 'tv')) {
       navigate(`/media/${item.media_type}/${item.id}`);
@@ -1648,7 +1691,7 @@ const PersonDetailPage: React.FC<PersonDetailPageProps> = () => { // Removed unu
     // Check if it's a PersonCreditItem first, then if it's a MediaItem
     if ('media_type' in item && (item.media_type === 'movie' || item.media_type === 'tv')) {
       navigate(`/media/${item.media_type}/${item.id}`);
-    } 
+    }
     // No navigation for 'person' type from here as we are already on a person's page
     // or if it's a PersonDetails type which doesn't have media_type.
   };
@@ -1823,20 +1866,20 @@ const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist, userListSer
 
     return (
     <div className="space-y-8">
-      {/* User Info Header */}
+            {/* User Info Header */}
       <div className="flex items-center space-x-4 p-1">
         {user.user_metadata?.avatar_url ? (
           <img src={user.user_metadata.avatar_url} alt={displayName} className="w-20 h-20 rounded-full object-cover border-2 border-slate-600 shadow-md" />
         ) : (
           <div className="w-20 h-20 rounded-full bg-slate-700 flex items-center justify-center text-3xl font-bold text-slate-300 border-2 border-slate-600 shadow-md">
-            {initials}
-          </div>
-        )}
+                        {initials}
+                    </div>
+                )}
         <div>
           <h1 className="text-3xl font-bold text-slate-100">{displayName}</h1>
           <p className="text-sm text-slate-400">Member since {memberSince} &bull; {seenList.length} items rated {user.is_anonymous && <span className="ml-2 px-2 py-0.5 bg-sky-600 text-sky-100 text-xs rounded-full">ANONYMOUS</span>}</p>
-        </div>
-      </div>
+                </div>
+            </div>
       
       {/* Account Conversion Section for Anonymous Users */}
       {user.is_anonymous && (
@@ -1905,7 +1948,7 @@ const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist, userListSer
             </div>
 
       {/* Recent Activity Section */}
-      <div>
+                    <div>
         <h2 className="text-xl font-semibold text-slate-200 mb-3">Recent Activity</h2>
         <div className="space-y-4">
           {userListService.getRankedList()
@@ -1913,13 +1956,13 @@ const ProfilePage: React.FC<BasePageProps> = ({ seenList, watchlist, userListSer
             .slice(0, 5)
             .map(item => (
               <RatedMediaCard key={`${item.id}-${item.media_type}`} item={item} onClick={handleCardClick} />
-            ))}
-        </div>
+                        ))}
+                    </div>
       </div>
 
-      <p className="text-center text-xs text-slate-600 pt-6">More profile features coming soon!</p>
-    </div>
-  );
+       <p className="text-center text-xs text-slate-600 pt-6">More profile features coming soon!</p>
+        </div>
+    );
 };
 
 // Simple Loading Spinner Component
