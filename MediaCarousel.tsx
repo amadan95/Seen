@@ -39,6 +39,13 @@ const MediaCarousel: React.FC<MediaCarouselProps> = ({
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Ref for the timeout
   const carouselRef = useRef<HTMLDivElement>(null); // Ref for the carousel div
 
+  useEffect(() => {
+    console.log('[MediaCarousel] Mounted or items prop changed. items count:', items.length, 'First item id (if any):', items[0]?.id);
+    return () => {
+      console.log('[MediaCarousel] Unmounted');
+    };
+  }, [items]); // Dependency on items
+
   const handleDefaultItemClick = (item: MediaItem | PersonCreditItem) => {
     if (item.media_type) {
       navigate(`/media/${item.media_type}/${item.id}`);
@@ -158,7 +165,10 @@ const MediaCarousel: React.FC<MediaCarouselProps> = ({
             >
               <MediaCard 
                 item={item} 
-                onClick={() => clickHandler(item)}
+                onClick={() => {
+                  console.log('[MediaCarousel] MediaCard clicked in carousel:', item);
+                  clickHandler(item);
+                }}
                 onMarkAsSeenClick={onMarkAsSeenClick ? () => onMarkAsSeenClick(item) : undefined}
                 onAddToWatchlistClick={onAddToWatchlistClick ? () => onAddToWatchlistClick(item) : undefined}
                 isSeen={isSeen ? isSeen(item) : undefined}
