@@ -1551,17 +1551,28 @@ const MyListsPage: React.FC<MyListsPageProps> = ({ watchlist, customLists, onRem
   return (
           <div className="space-y-4">
             {watchlist.length > 0 ? watchlist.map(item => (
-              <div key={`${item.id}-${item.media_type}`} className="flex items-center bg-slate-800 p-3 rounded-xl shadow-lg border border-slate-700">
-                <PosterImage path={item.poster_path} alt={item.title || item.name || "Poster"} className="w-16 h-24 object-cover rounded-md mr-4 flex-shrink-0" />
-                <div className="flex-grow min-w-0">
-                  <h3 className="text-md font-semibold text-slate-100 truncate cursor-pointer hover:text-cyan-400" onClick={() => handleCardClick(item)} role="button">{item.title || item.name}</h3>
-                  <p className="text-xs text-slate-400">{item.media_type === 'movie' ? 'Movie' : 'TV Show'} &bull; Added: {new Date(item.addedAt).toLocaleDateString()}</p>
-                  <p className="text-xs text-slate-300 mt-1 line-clamp-2">{item.overview}</p>
+              <div key={`${item.id}-${item.media_type}`} className="flex bg-slate-800 rounded-xl shadow-lg overflow-hidden border border-slate-700">
+                <div className="w-28 md:w-32 flex-shrink-0">
+                  <PosterImage path={item.poster_path} alt={item.title || item.name || "Poster"} className="w-full h-full object-cover" />
+                </div>
+                <div className="p-4 flex-grow flex flex-col justify-between relative">
+                  <div className="pr-16 md:pr-20">
+                    <h3 className="text-md md:text-lg font-semibold text-slate-100">{item.title || item.name}</h3>
+                    <p className="text-xs md:text-sm text-slate-400">
+                      {(item.release_date?.substring(0, 4) || item.first_air_date?.substring(0, 4) || "-")}
+                      {item.genres?.length ? ` • ${item.genres.map(g => g.name).join(', ')}` : ""}
+                    </p>
+                    <p className="text-xs md:text-sm text-slate-400">
+                      Runtime: {item.runtime ? `${item.runtime} min` : 'Unknown'} • Lang: {item.original_language?.toUpperCase() || "-"}
+                    </p>
+                    <p className="text-xs md:text-sm mt-1 line-clamp-2 md:line-clamp-3 text-slate-300">{item.overview || "No overview available."}</p>
+                  </div>
+                  <div className="mt-3"></div>
                 </div>
                 <button onClick={() => onRemoveFromWatchlist(item.id, item.media_type as 'movie'|'tv')} className="ml-3 p-2 text-red-500 hover:text-red-400 transition-colors rounded-md hover:bg-slate-700 flex-shrink-0">
                   <TrashIcon className="w-5 h-5" />
-          </button>
-      </div>
+                </button>
+              </div>
             )) : <p className="text-slate-400 text-center py-8">Your watchlist is empty. Add some movies or shows!</p>}
       </div>
         );
