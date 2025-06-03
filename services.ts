@@ -298,6 +298,13 @@ export const userListService = {
 
   getSeenList: (): RatedItem[] => getFromLocalStorage<RatedItem[]>('seenlist', []),
 
+  removeFromSeenList: (itemId: number, itemType: 'movie' | 'tv'): RatedItem[] => {
+    let list = userListService.getSeenList();
+    list = list.filter(i => !(i.id === itemId && i.media_type === itemType));
+    saveToLocalStorage('seenlist', list);
+    return list;
+  },
+
   createRatedItem: async (item: MediaItem, reaction: Reaction, userNotes?: string): Promise<RatedItem> => {
     const preparedItem = await tmdbService.prepareRatedItemProperties(item);
     const ratedItem: RatedItem = { 

@@ -95,21 +95,19 @@ export type WatchlistItem = MediaItem & {
 };
 
 export interface ComparisonStep {
-  itemComparedAgainst: MediaItem;
+  itemComparedAgainst: RatedItem;
   userPreferredNewItem: boolean;
   promptUsed?: string;
+  choiceType?: 'tough_call';
 }
 
 export interface IterativeComparisonSession {
   isActive: boolean;
   newItem: RatedItem;
-  comparisonBucketSnapshot: RatedItem[]; 
+  comparisonList: RatedItem[];
   lowIndex: number;
   highIndex: number;
-  pivotItem: RatedItem | null;
-  currentPrompt: string;
-  comparisonsMade: number;
-  maxComparisons: number;
+  comparisonCount: number;
   history: ComparisonStep[];
 }
 

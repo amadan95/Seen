@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MediaItem, Reaction, RatedItem, TMDBGenre, CastMember, CrewMember, Episode, RankedItem, ComparisonStep, WatchProviderDetails, WatchProviderCountryResult, TMDBMovie, TMDBShow, CustomList, CustomListMediaItem, UserProfile, FeedComment, PersonCreditItem, FeedItem, FeedActivityType } from './types';
 import { REACTION_EMOJIS, REACTION_LABELS, TMDB_IMAGE_BASE_URL_W500, TMDB_IMAGE_BASE_URL_ORIGINAL, ACCENT_COLOR_CLASS_TEXT, ACCENT_COLOR_CLASS_BG, ACCENT_COLOR_CLASS_BG_HOVER, ACCENT_COLOR_CLASS_BORDER, ACCENT_COLOR_CLASS_RING } from './constants';
 // Fix: Add ListBulletIcon to icons import
-import { XMarkIcon, EyeIcon, StarIcon, CheckIcon, QuestionMarkCircleIcon, UserIcon, ChevronDoubleRightIcon, ChevronDoubleLeftIcon, ChatBubbleLeftEllipsisIcon, InformationCircleIcon, ArrowUpIcon, ArrowDownIcon, HeartIcon, ChatBubbleOvalLeftEllipsisIcon, PlusCircleIcon, PencilIcon, TrashIcon, FilmIcon, TvIcon, RectangleStackIcon, ListBulletIcon, BookmarkIcon, BookmarkSquareIcon, CheckCircleIcon } from './icons'; // Added BookmarkIcon, BookmarkSquareIcon, CheckCircleIcon
+import { XMarkIcon, EyeIcon, StarIcon, CheckIcon, QuestionMarkCircleIcon, UserIcon, ChevronDoubleRightIcon, ChevronDoubleLeftIcon, ChatBubbleLeftEllipsisIcon, InformationCircleIcon, ArrowUpIcon, ArrowDownIcon, HeartIcon, ChatBubbleOvalLeftEllipsisIcon, PlusCircleIcon, PencilIcon, TrashIcon, FilmIcon, TvIcon, RectangleStackIcon, ListBulletIcon, BookmarkIcon, BookmarkSquareIcon, CheckCircleIcon, SparklesIcon } from './icons'; // Added BookmarkIcon, BookmarkSquareIcon, CheckCircleIcon, SparklesIcon
 import { tmdbService, userListService } from './services';
 import { Link } from 'react-router-dom'; // For navigation
 
@@ -101,6 +101,7 @@ interface MediaCardProps {
   onAddToWatchlistClick?: (item: MediaItem | PersonCreditItem) => void;
   isSeen?: boolean;
   isWatchlisted?: boolean;
+  onReRankClick?: (item: MediaItem | PersonCreditItem) => void;
 }
 export const MediaCard: React.FC<MediaCardProps> = ({ 
   item, 
@@ -110,7 +111,8 @@ export const MediaCard: React.FC<MediaCardProps> = ({
   onMarkAsSeenClick,
   onAddToWatchlistClick,
   isSeen,
-  isWatchlisted
+  isWatchlisted,
+  onReRankClick
 }) => {
   const title = item.title || item.name || 'Untitled';
   const releaseYear = item.release_date?.substring(0,4) || item.first_air_date?.substring(0,4) || '';
@@ -148,6 +150,16 @@ export const MediaCard: React.FC<MediaCardProps> = ({
             >
               {isSeen ? <CheckCircleIcon className="w-5 h-5 text-white" /> : <PlusCircleIcon className="w-5 h-5 text-white" />}
             </button>
+            {isSeen && onReRankClick && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onReRankClick(item); }}
+                className={`p-1.5 rounded-full bg-sky-600/80 hover:bg-sky-500/90 backdrop-blur-sm transition-colors transform hover:scale-110`}
+                aria-label="Re-Rank this item"
+                title="Re-Rank this item"
+              >
+                <SparklesIcon className="w-5 h-5 text-white" />
+              </button>
+            )}
             <button 
               onClick={handleWatchlistClick}
               className={`p-1.5 rounded-full transition-colors transform hover:scale-110 ${isWatchlisted ? 'bg-cyan-500/90 hover:bg-cyan-400/95' : 'bg-slate-800/80 hover:bg-slate-700/90 backdrop-blur-sm'}`}
@@ -268,18 +280,42 @@ export const NotesTextarea: React.FC<NotesTextareaProps> = ({ value, onChange, p
 );
 
 // --- Pairwise Comparison Modal ---
-interface PairwiseComparisonModalProps { isOpen: boolean; onClose: () => void; itemA: MediaItem; itemB: MediaItem; comparisonPrompt: string; onChoose: (chosenItem: MediaItem) => void; }
-export const PairwiseComparisonModal: React.FC<PairwiseComparisonModalProps> = ({ isOpen, onClose, itemA, itemB, comparisonPrompt, onChoose }) => {
+interface PairwiseComparisonModalProps { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  itemA: MediaItem; 
+  itemB: MediaItem; 
+  comparisonPrompt: string; 
+  onChoose: (chosenItem: MediaItem) => void; 
+  onTooTough?: () => void;
+}
+
+export const PairwiseComparisonModal: React.FC<PairwiseComparisonModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  itemA, 
+  itemB, 
+  comparisonPrompt, 
+  onChoose,
+  onTooTough
+}) => {
   if (!isOpen || !itemA || !itemB) return null;
+  
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
-      <div className="bg-slate-800 p-4 sm:p-6 rounded-xl shadow-2xl w-full max-w-3xl text-center border border-slate-700">
-        <h2 className={`text-2xl font-semibold mb-3 ${ACCENT_COLOR_CLASS_TEXT}`}>Which do you prefer?</h2>
-        <p className="text-slate-300 mb-4 text-sm min-h-[56px] sm:mb-6 sm:min-h-[40px] flex items-center justify-center">{comparisonPrompt || "Considering both, which one stands out more to you?"}</p>
+      <div className="bg-slate-800 p-4 sm:p-6 rounded-xl shadow-2xl w-full max-w-3xl text-center border border-slate-700 relative">
+        <button
+          onClick={onClose}
+          className="absolute top-3 left-3 sm:top-4 sm:left-4 text-slate-400 hover:text-white transition-colors z-10"
+          aria-label="Close comparison"
+        >
+          <XMarkIcon className="w-6 h-6 sm:w-7 sm:h-7" />
+        </button>
+        <h2 className={`text-2xl font-semibold mb-6 ${ACCENT_COLOR_CLASS_TEXT}`}>Which do you prefer?</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
           {[itemA, itemB].map((item) => (
-            <div // Item Card Wrapper
-              key={item.id} 
+            <div 
+              key={`${item.id}-${item.media_type}`} 
               onClick={() => onChoose(item)} 
               role="button" 
               tabIndex={0} 
@@ -312,12 +348,22 @@ export const PairwiseComparisonModal: React.FC<PairwiseComparisonModalProps> = (
                   md:text-lg md:mt-2                                                 /* DESKTOP (md+) title size & margin */
                 `}>{item.title || item.name}</h3>
                 <p className="text-xs text-slate-400 truncate">{item.genres?.slice(0,2).map(g=>g.name).join(', ')}</p>
-                <p className="text-xs text-slate-400 truncate">{(item as RatedItem).runtimeCategory} &bull; {(item as RatedItem).original_language?.toUpperCase()}</p>
+                <p className="text-xs text-slate-400 truncate">{item.media_type === 'movie' ? 'Movie' : 'TV Show'} &bull; {item.original_language?.toUpperCase()}</p>
               </div>
             </div>
           ))}
         </div>
-        <button onClick={onClose} className="mt-4 px-4 py-2 sm:px-6 sm:py-2.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors font-semibold" aria-label="Cancel comparison process">Cancel Ranking</button>
+        {onTooTough && (
+          <div className="mt-12 flex justify-center">
+            <button 
+              onClick={onTooTough} 
+              className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors font-semibold text-xs"
+              aria-label="Too tough to call"
+            >
+              Too tough
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -650,8 +696,9 @@ interface FeedCardProps {
     feedItem: FeedItem;
     currentUser: UserProfile;
     onCardClick: (item: MediaItem) => void;
+    onReRankClick?: (item: MediaItem) => void;
 }
-export const FeedCard: React.FC<FeedCardProps> = ({ feedItem, currentUser, onCardClick }) => {
+export const FeedCard: React.FC<FeedCardProps> = ({ feedItem, currentUser, onCardClick, onReRankClick }) => {
     const actor = feedItem.user;
     const actionText = () => {
         // Using string literals for all cases that match FeedActivityType enum values
@@ -702,6 +749,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ feedItem, currentUser, onCar
                          key={`${feedItem.mediaItem.id}-${feedItem.mediaItem.media_type}`}
                          item={feedItem.mediaItem} 
                          onClick={() => onCardClick(feedItem.mediaItem!)}
+                         onReRankClick={onReRankClick ? () => onReRankClick(feedItem.mediaItem!) : undefined}
                        />
                    </div>
                 )}

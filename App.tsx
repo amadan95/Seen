@@ -23,6 +23,7 @@ import { useAuth } from './contexts/AuthContext'; // Import useAuth
 import OnboardingPage from './components/OnboardingPage'; // Added OnboardingPage import
 
 const MAX_COMPARISONS_PER_ITEM = 5;
+const MAX_COMPARISONS = 10; // Maximum number of comparisons to make
 
 // NEW: AppContent component
 const AppContent: React.FC = () => {
@@ -68,73 +69,142 @@ const AppContent: React.FC = () => {
   }, []);
 
   const handleMarkAsSeen = useCallback((item: MediaItem) => {
-    setSelectedItemForReaction(item);
     const existingRating = userListService.isSeen(item.id, item.media_type as 'movie' | 'tv');
-    setCurrentUserNotes(existingRating?.userNotes || "");
-    setIsReactionModalOpen(true);
-  }, []);
+    if (existingRating) {
+      // Item is already seen, so unrank it/remove from seen list
+      const updatedSeenList = userListService.removeFromSeenList(item.id, item.media_type as 'movie' | 'tv');
+      setSeenList(updatedSeenList);
+      // Optionally, add to watchlist if it was on watchlist before being seen? For now, just removes from seen.
+    } else {
+      // Item is not seen, proceed to rate it
+      setSelectedItemForReaction(item);
+      setCurrentUserNotes(""); // Clear notes for new rating
+      setIsReactionModalOpen(true);
+    }
+  }, [userListService, setSeenList, setSelectedItemForReaction, setCurrentUserNotes, setIsReactionModalOpen]);
+
+  // Helper function (not a hook) - MOVED HERE
+  const calculatePivotIndexSmartly = (low: number, high: number, newItem: RatedItem, comparisonList: RatedItem[]): number => {
+    if (low > high) return low;
+    return Math.floor((low + high) / 2);
+  };
 
   // Moved up and wrapped in useCallback
   const handleCancelIterativeComparison = useCallback(() => {
-    setIterativeComparisonState(null); 
-    setIsLoadingGlobal(false); 
-    setCurrentUserNotes("");
-  }, [setIterativeComparisonState, setIsLoadingGlobal, setCurrentUserNotes]); // Correct dependencies for this
+    setIterativeComparisonState(null);
+    setCurrentComparison(null);
+    setCurrentPrompt("");
+    setIsLoadingGlobal(false); // Ensure loading is turned off on cancel
+  }, []);
 
-  const proceedToNextComparisonStep = useCallback(async (session: IterativeComparisonSession) => {
+  const [currentPrompt, setCurrentPrompt] = useState<string>("Which do you prefer?");
+  const [currentComparison, setCurrentComparison] = useState<{ item1: MediaItem; item2: MediaItem } | null>(null);
+  const [isComparisonLoading, setIsComparisonLoading] = useState(false);
+
+  const proceedToNextComparisonStep = useCallback((session: IterativeComparisonSession) => {
     if (!session.isActive) return;
-    if (session.lowIndex > session.highIndex || session.comparisonsMade >= session.maxComparisons) {
-      const insertionIndex = session.lowIndex;
-      let finalOrderedBucket = [...session.comparisonBucketSnapshot];
-      finalOrderedBucket.splice(insertionIndex, 0, session.newItem);
-      const updatedFullSeenList = userListService.updateOrderAfterIteration(session.newItem, finalOrderedBucket);
-      setSeenList(updatedFullSeenList);
-      const fullyRankedItem = userListService.getRankedList(session.newItem.media_type as 'movie' | 'tv' | undefined, session.newItem.userReaction).find(i => i.id === session.newItem.id && i.media_type === session.newItem.media_type);
-      setComparisonSummaryState({ show: true, rankedItem: fullyRankedItem || { ...session.newItem, rank: insertionIndex, personalScore: 0 }, comparisonHistory: session.history, totalComparisonsMade: session.comparisonsMade });
-      setIterativeComparisonState(null); setIsLoadingGlobal(false); return;
-    }
-    const pivotIdx = calculatePivotIndexSmartly(session.lowIndex, session.highIndex, session.newItem, session.comparisonBucketSnapshot);
-    const pivotItem = session.comparisonBucketSnapshot[pivotIdx];
-    if (!pivotItem) { /* console.log("Pivot item is undefined, ending comparison early.", session); */ setIsLoadingGlobal(false); 
-      // Recursive call needs careful thought with useCallback.
-      // For now, let's assume this direct call is okay if the session object changes enough
-      // or if this path is rare and doesn't cause infinite loops.
-      // To be perfectly safe, this might need a refactor to avoid direct recursion
-      // if it becomes a problem, or ensure dependencies allow it to update.
-      proceedToNextComparisonStep({ ...session, lowIndex: session.highIndex + 1 }); return; 
-    }
 
-    try {
-      setIsLoadingGlobal(true); // Indicate loading for prompt generation
-      const sharedGenres = session.newItem.genres?.filter(g => pivotItem.genres?.some(pg => pg.id === g.id)).map(g => g.name) || [];
-      const promptText = await geminiService.generateComparisonPrompt({ 
-        newItem: session.newItem, 
-        existingItem: pivotItem, 
-        reaction: session.newItem.userReaction, 
-        isIterative: true, 
-        sharedGenres 
+    // Check if we've reached the end of comparisons
+    if (session.lowIndex > session.highIndex || session.comparisonCount >= MAX_COMPARISONS) {
+      // Update the seen list with the new item
+      setSeenList(prev => [...prev, session.newItem]);
+      
+      // Convert RatedItem to RankedItem
+      const rankForCalc = session.lowIndex;
+      const totalItemsForCalc = session.comparisonList.length + 1;
+      const reactionForCalc = session.newItem.userReaction;
+      console.log('[App.tsx] Calculating score with:', { rank: rankForCalc, totalItems: totalItemsForCalc, reaction: reactionForCalc });
+      const score = userListService.calculatePersonalScore(
+        rankForCalc,
+        totalItemsForCalc,
+        reactionForCalc
+      );
+      console.log('[App.tsx] Calculated score:', score);
+
+      const rankedItem: RankedItem = {
+        ...session.newItem,
+        personalScore: score,
+        rank: rankForCalc // This is the 0-indexed rank, display will add +1
+      };
+      
+      // Set comparison summary state
+      setComparisonSummaryState({
+        show: true,
+        rankedItem,
+        comparisonHistory: session.history,
+        totalComparisonsMade: session.comparisonCount
       });
-      // Only set state for comparison if prompt generation was successful
-      setIterativeComparisonState({ ...session, pivotItem: pivotItem, currentPrompt: promptText });
-    } catch (error) {
-      console.error("Error generating comparison prompt:", error);
-      // Handle error: Maybe show a message to the user, and cancel comparison
-      setIterativeComparisonState(prev => prev ? { ...prev, isActive: false, currentPrompt: "Error generating comparison. Please try again." } : null); 
-      // Consider navigating away or showing an error modal. For now, stop the session.
-      // alert("Failed to generate comparison. Please try rating again."); // Simple alert
-      handleCancelIterativeComparison(); // This also sets isLoadingGlobal to false
-    } finally {
-      // Ensure loading is always stopped if this path is reached, 
-      // UNLESS handleCancelIterativeComparison was called (which handles its own loading state)
-      // This finally might be redundant if handleCancelIterativeComparison is always called on error.
-      // Let's rely on handleCancelIterativeComparison to set isLoadingGlobal(false) on error.
-      // If no error, the next state update should lead to the modal, not the global spinner.
-      // If an error occurs, handleCancelIterativeComparison sets it to false.
-      // If successful, we want isLoadingGlobal to be false so the Pairwise modal can show *without* the global spinner.
-      setIsLoadingGlobal(false); 
+      
+      // Reset the comparison session
+      setIterativeComparisonState(null);
+      return;
     }
 
-  }, [handleCancelIterativeComparison, setIsLoadingGlobal, setIterativeComparisonState, userListService, geminiService]); // Removed self-reference, added other direct dependencies. Note: recursive call to proceedToNextComparisonStep is not in deps.
+    // Calculate pivot index
+    const pivotIndex = Math.floor((session.lowIndex + session.highIndex) / 2);
+    const pivotItem = session.comparisonList[pivotIndex];
+
+    if (!pivotItem) {
+      console.error("Pivot item not found");
+      setIterativeComparisonState(null);
+      return;
+    }
+
+    // Set the current comparison
+    setCurrentComparison({
+      item1: session.newItem,
+      item2: pivotItem
+    });
+
+    // Set a simple comparison prompt
+    setCurrentPrompt("Which do you prefer?");
+    setIsLoadingGlobal(false); // Ensure loading is turned off before showing the modal
+
+  }, [setSeenList, setIterativeComparisonState, setComparisonSummaryState]);
+
+  const handleIterativeComparisonChoice = useCallback((chosenItem: MediaItem) => {
+    if (!iterativeComparisonState?.isActive || !currentComparison) return;
+
+    const { newItem, lowIndex, highIndex, comparisonCount, history, comparisonList } = iterativeComparisonState;
+    const pivotIndex = Math.floor((lowIndex + highIndex) / 2);
+    const pivotItem = comparisonList[pivotIndex];
+
+    // Create a new history entry
+    const newHistoryEntry = {
+      itemComparedAgainst: pivotItem,
+      userPreferredNewItem: chosenItem.id === newItem.id,
+      promptUsed: currentPrompt
+    };
+
+    // Update indices based on user's choice
+    let newLowIndex = lowIndex;
+    let newHighIndex = highIndex;
+
+    if (chosenItem.id === newItem.id) { // User preferred the NEW item
+      newHighIndex = pivotIndex - 1; // New item is better than pivot, search upper/better part
+    } else { // User preferred the PIVOT item
+      newLowIndex = pivotIndex + 1;   // New item is worse than pivot, search lower/worse part
+    }
+
+    // Update the session state
+    setIterativeComparisonState({
+      ...iterativeComparisonState,
+      lowIndex: newLowIndex,
+      highIndex: newHighIndex,
+      comparisonCount: comparisonCount + 1,
+      history: [...history, newHistoryEntry]
+    });
+
+    // Proceed to next comparison
+    proceedToNextComparisonStep({
+      ...iterativeComparisonState,
+      lowIndex: newLowIndex,
+      highIndex: newHighIndex,
+      comparisonCount: comparisonCount + 1,
+      history: [...history, newHistoryEntry]
+    });
+
+  }, [iterativeComparisonState, currentComparison, currentPrompt, proceedToNextComparisonStep]);
 
   const startIterativeComparison = useCallback(async (ratedItem: RatedItem) => {
     setIsLoadingGlobal(true);
@@ -149,12 +219,18 @@ const AppContent: React.FC = () => {
       setIsLoadingGlobal(false); return;
     }
 
-    const initialSession: IterativeComparisonSession = { isActive: true, newItem: ratedItem, comparisonBucketSnapshot: relevantBucketItems, lowIndex: 0, highIndex: relevantBucketItems.length - 1, pivotItem: null, currentPrompt: "Loading comparison...", comparisonsMade: 0, maxComparisons: MAX_COMPARISONS_PER_ITEM, history: [] };
+    const initialSession: IterativeComparisonSession = {
+      isActive: true,
+      newItem: ratedItem,
+      comparisonList: relevantBucketItems,
+      lowIndex: 0,
+      highIndex: relevantBucketItems.length - 1,
+      comparisonCount: 0,
+      history: []
+    };
     setIterativeComparisonState(initialSession);
-    // setIsLoadingGlobal(true); // Moved this responsibility into proceedToNextComparisonStep or rely on handleReactionSelected
     await proceedToNextComparisonStep(initialSession);
-    // No setIsLoadingGlobal(false) here, as proceedToNextComparisonStep handles it or leads to modal
-  }, [proceedToNextComparisonStep, setIsLoadingGlobal, userListService, setSeenList, setComparisonSummaryState, setIterativeComparisonState]); // Added missing dependencies
+  }, [proceedToNextComparisonStep, setIsLoadingGlobal, userListService, setSeenList, setComparisonSummaryState, setIterativeComparisonState]);
 
   const handleReactionSelected = useCallback(async (reaction: Reaction) => {
     if (!selectedItemForReaction) return;
@@ -172,18 +248,55 @@ const AppContent: React.FC = () => {
     // Let's assume child functions correctly manage isLoadingGlobal.
   }, [selectedItemForReaction, currentUserNotes, startIterativeComparison, setIsLoadingGlobal, setIsReactionModalOpen, userListService, setWatchlist, setSeenList, setSelectedItemForReaction, setCurrentUserNotes]); // Added missing dependencies
 
-  const handleIterativeComparisonChoice = useCallback((chosenItem: MediaItem) => {
-    if (!iterativeComparisonState || !iterativeComparisonState.pivotItem || !iterativeComparisonState.isActive) return;
-    const { newItem, pivotItem, lowIndex, highIndex, comparisonsMade, history, comparisonBucketSnapshot } = iterativeComparisonState;
-    const userPreferredNewItem = chosenItem.id === newItem.id && chosenItem.media_type === newItem.media_type;
-    const newHistoryEntry: ComparisonStep = { itemComparedAgainst: pivotItem, userPreferredNewItem: userPreferredNewItem, promptUsed: iterativeComparisonState.currentPrompt };
-    let newLowIndex = lowIndex, newHighIndex = highIndex;
-    const currentPivotIndexInSnapshot = comparisonBucketSnapshot.findIndex(p => p.id === pivotItem.id && p.media_type === pivotItem.media_type);
-    if (userPreferredNewItem) newHighIndex = currentPivotIndexInSnapshot - 1; else newLowIndex = currentPivotIndexInSnapshot + 1;
-    const updatedSession: IterativeComparisonSession = { ...iterativeComparisonState, lowIndex: newLowIndex, highIndex: newHighIndex, comparisonsMade: comparisonsMade + 1, history: [...history, newHistoryEntry], pivotItem: null };
+  const handleTooToughChoice = useCallback(() => {
+    if (!iterativeComparisonState?.isActive || !currentComparison) return;
+
+    const { newItem, lowIndex, highIndex, comparisonCount, history, comparisonList } = iterativeComparisonState;
+    const pivotIndex = Math.floor((lowIndex + highIndex) / 2);
+    const pivotItem = comparisonList[pivotIndex];
+
+    // Create a new history entry indicating a tie or undecided choice
+    const newHistoryEntry: ComparisonStep = {
+      itemComparedAgainst: pivotItem,
+      userPreferredNewItem: false, // Treat as pivotItem being chosen for placement
+      promptUsed: currentPrompt,
+      choiceType: 'tough_call' // Special marker for this type of choice
+    };
+
+    // Update indices as if the pivotItem was chosen
+    // This means newItem is considered not better than pivotItem
+    const newLowIndex = pivotIndex + 1; // New item is worse than or equal to pivot, search lower/worse part
+
+    const updatedSession: IterativeComparisonSession = {
+      ...iterativeComparisonState,
+      lowIndex: newLowIndex,
+      highIndex, // highIndex remains the same in this scenario for simplicity
+      comparisonCount: comparisonCount + 1,
+      history: [...history, newHistoryEntry]
+    };
+
     proceedToNextComparisonStep(updatedSession);
-  }, [iterativeComparisonState, proceedToNextComparisonStep]); // Correct dependencies
-  
+  }, [iterativeComparisonState, currentComparison, currentPrompt, proceedToNextComparisonStep]);
+
+  const handleReRank = useCallback(async (itemToReRank: MediaItem) => {
+    setIsLoadingGlobal(true);
+    // Remove from seen list first to ensure it's treated as a new item for ranking logic
+    const tempSeenList = userListService.removeFromSeenList(itemToReRank.id, itemToReRank.media_type as 'movie' | 'tv');
+    setSeenList(tempSeenList);
+
+    // Attempt to get existing reaction and notes, or use defaults
+    const existingRating = userListService.isSeen(itemToReRank.id, itemToReRank.media_type as 'movie' | 'tv');
+    const reaction = existingRating?.userReaction || Reaction.Fine;
+    const notes = existingRating?.userNotes || "";
+
+    // Create a RatedItem structure (similar to handleReactionSelected)
+    const ratedItemForReRank = await userListService.createRatedItem(itemToReRank, reaction, notes);
+    // No need to call setSelectedItemForReaction or open reaction modal here
+    
+    await startIterativeComparison(ratedItemForReRank);
+    // isLoadingGlobal will be managed by startIterativeComparison and proceedToNextComparisonStep
+  }, [setIsLoadingGlobal, userListService, setSeenList, startIterativeComparison]);
+
   // Main useEffect for onboarding and auth redirection logic
   useEffect(() => {
     const onboardingCompleted = localStorage.getItem('onboardingCompleted');
@@ -211,12 +324,6 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Helper function (not a hook)
-  const calculatePivotIndexSmartly = (low: number, high: number, newItem: RatedItem, comparisonList: RatedItem[]): number => {
-    if (low > high) return low;
-    return Math.floor((low + high) / 2);
-  };
-  
   // Helper function (not a hook)
   const handleCreateCustomList = (name: string, description?: string) => {
     const updatedLists = userListService.createCustomList(name, description);
@@ -258,9 +365,9 @@ const AppContent: React.FC = () => {
     watchlist,
     seenList,
     customLists,
-    onAddToWatchlist: handleAddToWatchlist,
-    onMarkAsSeen: handleMarkAsSeen,
-    onRemoveFromWatchlist: handleRemoveFromWatchlist,
+    onAddToWatchlist: handleAddToWatchlist, // Restored
+    onMarkAsSeen: handleMarkAsSeen, // Restored
+    onRemoveFromWatchlist: handleRemoveFromWatchlist, // Restored
     onAddToList: handleOpenAddToListModal,
     setCustomLists, 
     openCreateListModal: () => setIsCreateListModalOpen(true)
@@ -274,11 +381,11 @@ const AppContent: React.FC = () => {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
-            <Route path="/" element={<FeedPage {...commonPageProps} currentUser={mockUser} />} />
-          <Route path="/explore" element={<ExplorePage {...commonPageProps} initialTab={currentExploreTab} watchlist={watchlist} />} />
+            <Route path="/" element={<FeedPage {...commonPageProps} currentUser={mockUser} onReRank={handleReRank} />} />
+          <Route path="/explore" element={<ExplorePage {...commonPageProps} initialTab={currentExploreTab} watchlist={watchlist} onReRank={handleReRank} />} />
             <Route path="/mylists" element={<MyListsPage {...commonPageProps} openCreateListModal={() => setIsCreateListModalOpen(true)} />} />
             <Route path="/mylists/:listId" element={<CustomListPage {...commonPageProps} />} />
-            <Route path="/media/:type/:id" element={<MediaDetailPage {...commonPageProps} />} />
+            <Route path="/media/:type/:id" element={<MediaDetailPage {...commonPageProps} onReRank={handleReRank} />} />
             <Route path="/person/:personId" element={<PersonDetailPage {...commonPageProps} />} />
             <Route path="/profile" element={<ProfilePage {...commonPageProps} />} /> 
           </Routes>
@@ -290,10 +397,24 @@ const AppContent: React.FC = () => {
               className={`w-full mt-6 py-3 ${ACCENT_COLOR_CLASS_BG} ${ACCENT_COLOR_CLASS_BG_HOVER} text-white font-semibold rounded-lg transition-colors text-lg`}>Save Rating & Notes</button></>
           )}
         </Modal>
-        {iterativeComparisonState?.isActive && iterativeComparisonState.pivotItem && iterativeComparisonState.newItem && (
-          <PairwiseComparisonModal isOpen={true} onClose={handleCancelIterativeComparison} itemA={iterativeComparisonState.newItem} itemB={iterativeComparisonState.pivotItem} comparisonPrompt={iterativeComparisonState.currentPrompt} onChoose={handleIterativeComparisonChoice} />
+        {iterativeComparisonState?.isActive && currentComparison && (
+          <PairwiseComparisonModal 
+            isOpen={true} 
+            onClose={handleCancelIterativeComparison} 
+            itemA={currentComparison.item1} 
+            itemB={currentComparison.item2} 
+            comparisonPrompt={currentPrompt} 
+            onChoose={handleIterativeComparisonChoice} 
+            onTooTough={handleTooToughChoice} // Pass the new handler
+          />
         )}
-        <ComparisonSummaryModal isOpen={comparisonSummaryState.show} onClose={() => setComparisonSummaryState({ show: false, rankedItem: null, comparisonHistory: [], totalComparisonsMade: 0 })} rankedItem={comparisonSummaryState.rankedItem} comparisonHistory={comparisonSummaryState.comparisonHistory} totalComparisonsMade={comparisonSummaryState.totalComparisonsMade} />
+        <ComparisonSummaryModal 
+          isOpen={comparisonSummaryState.show} 
+          onClose={() => setComparisonSummaryState({ show: false, rankedItem: null, comparisonHistory: [], totalComparisonsMade: 0 })} 
+          rankedItem={comparisonSummaryState.rankedItem} 
+          comparisonHistory={comparisonSummaryState.comparisonHistory} 
+          totalComparisonsMade={comparisonSummaryState.totalComparisonsMade} 
+        />
         <CreateListModal isOpen={isCreateListModalOpen} onClose={() => setIsCreateListModalOpen(false)} onCreate={handleCreateCustomList} />
         <AddToListModal isOpen={isAddToListModalOpen} onClose={() => setIsAddToListModalOpen(false)} mediaItem={selectedMediaForListAddition} customLists={customLists} onAddToList={handleAddItemToCustomList} onCreateAndAddToList={handleCreateAndAddToList} />
         {isLoadingGlobal && (
@@ -336,28 +457,29 @@ const AppNavigation: React.FC<{ setCurrentExploreTab: (tab: 'trendingMovies' | '
   <nav className="fixed bottom-0 left-0 right-0 bg-[#1A1A1A]/90 backdrop-blur-md border-t border-gray-700 shadow-t-xl z-40"> {/* Adjusted background and border */}
     <div className="container mx-auto sm:px-0">
       <div className="flex justify-around items-center h-16">
-        <NavItem to="/" icon={<NewHomeIcon className="w-6 h-6" />} label="Feed" /> {/* Changed to NewHomeIcon */}
+        <NavItem to="/" icon={<NewModernHomeIcon className="w-6 h-6" />} label="Feed" /> {/* Changed to NewModernHomeIcon */}
         <NavItem 
           to="/explore" 
-          icon={<NewExploreIcon className="w-6 h-6" />} 
+          icon={<NewSearchIcon className="w-6 h-6" />} 
           label="Explore" 
           onClick={() => setCurrentExploreTab('trendingMovies')} // Added onClick handler
-        /> {/* Changed to NewExploreIcon */}
-        <NavItem to="/mylists" icon={<NewListIcon className="w-6 h-6" />} label="My Lists" /> {/* Changed to NewListIcon */}
+        /> {/* Changed to NewSearchIcon */}
+        <NavItem to="/mylists" icon={<NewBookmarkNavIcon className="w-6 h-6" />} label="My Lists" /> {/* Changed to NewBookmarkNavIcon */}
           {loading ? (
             <div className="flex flex-col items-center justify-center px-3 py-2.5 text-xs font-medium text-gray-500 w-1/4">
               <NewUserIcon className="w-6 h-6 animate-pulse" />
               <span className="mt-1.5">Loading...</span>
             </div>
           ) : user ? (
-            <NavItem to="/profile" icon={<NewUserIcon className="w-6 h-6" />} label="Profile" />
+            <NavItem to="/profile" icon={<NewProfileIcon className="w-6 h-6" />} label="Profile" />
           ) : (
-            <NavItem to="/login" icon={<NewUserIcon className="w-6 h-6" />} label="Login" />
+            <NavItem to="/login" icon={<NewProfileIcon className="w-6 h-6" />} label="Login" />
           )}
       </div>
     </div>
   </nav>
-  )}; // Corrected: ensure this is a curly brace for the function body and a semicolon for the statement.
+  ); // Explicit return for the JSX block
+}; // Closing of the component
 
 interface BasePageProps {
   userListService: typeof userListService; // Add userListService
@@ -370,6 +492,7 @@ interface BasePageProps {
   onAddToList: (item: MediaItem) => void; 
   setCustomLists: React.Dispatch<React.SetStateAction<CustomList[]>>;
   openCreateListModal: () => void; // Added here
+  onReRank?: (item: MediaItem) => void; // New prop for re-ranking
 }
 
 // Prop type for ExplorePage including the new initialTab from App
@@ -377,6 +500,7 @@ interface ExplorePageProps extends BasePageProps {
   initialTab?: 'trendingMovies' | 'trendingShows' | 'search' | 'forYou' | 'moviesOnly' | 'tvShowsOnly';
   // Add watchlist to ExplorePageProps
   watchlist: WatchlistItem[]; 
+  // onReRank is inherited from BasePageProps
 }
 
 // --- Explore Page ---
@@ -905,7 +1029,7 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
             }}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 mb-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg shadow-md transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-cyan-500"
           >
-            <FilterIcon className="w-5 h-5" />
+            <NewFilterIcon className="w-5 h-5" />
             <span>Filters</span>
             {(activeTab === 'trendingMovies' && totalTrendingMovieFilters > 0) && (
               <span className="bg-cyan-500 text-xs font-semibold text-slate-900 px-2 py-0.5 rounded-full">
@@ -1081,7 +1205,7 @@ const ExplorePage: React.FC<ExplorePageProps> = ({
 }; // Add the closing brace and semicolon for ExplorePage
 
 // --- Media Detail Page ---
-const MediaDetailPage: React.FC<BasePageProps> = ({ userListService, onAddToWatchlist, onMarkAsSeen, onAddToList, seenList, watchlist, customLists }) => {
+const MediaDetailPage: React.FC<BasePageProps> = ({ userListService, onAddToWatchlist, onMarkAsSeen, onAddToList, seenList, watchlist, customLists, onReRank }) => {
   const { type, id } = useParams<{ type: string; id: string }>();
   const [item, setItem] = useState<MediaItem | null>(null);
   const [credits, setCredits] = useState<CreditsResponse | null>(null);
@@ -1766,8 +1890,11 @@ const PersonDetailPage: React.FC<PersonDetailPageProps> = () => { // Removed unu
 // --- Feed Page ---
 interface FeedPageProps extends Omit<BasePageProps, 'onAddToWatchlist' | 'onMarkAsSeen' | 'onAddToList'> { 
   currentUser: UserProfile; 
+  // onReRank is inherited from BasePageProps, but we can redefine if we need to make it non-optional for FeedPage
+  // For now, keep it optional as per BasePageProps, or make BasePageProps onReRank non-optional if always needed.
+  // Let's assume for FeedPage it might be optional for now, or rely on BasePageProps.
 }
-const FeedPage: React.FC<FeedPageProps> = ({ currentUser }) => {
+const FeedPage: React.FC<FeedPageProps> = ({ currentUser, onReRank, ...baseProps }) => {
   const navigate = useNavigate();
   const handleCardClick = (item: MediaItem) => { if (item.media_type) navigate(`/media/${item.media_type}/${item.id}`); };
   const [feedItems, setFeedItems] = useState(mockFeedItems); 
@@ -1780,12 +1907,15 @@ const FeedPage: React.FC<FeedPageProps> = ({ currentUser }) => {
       ) : (
         <div className="space-y-5 max-w-2xl mx-auto"> {/* Centered feed content */}
           {feedItems.map(feedItem => (
-            <FeedCard 
-                key={feedItem.id} 
-                feedItem={feedItem} 
-                currentUser={currentUser}
-                onCardClick={handleCardClick} // Changed from onMediaClick
-            />
+            feedItem.mediaItem && (
+              <FeedCard 
+                  key={feedItem.id} 
+                  feedItem={feedItem} 
+                  currentUser={currentUser}
+                  onCardClick={handleCardClick} // Changed from onMediaClick
+                  onReRankClick={onReRank ? () => onReRank(feedItem.mediaItem!) : undefined} // Pass to FeedCard
+              />
+            )
           ))}
         </div>
       )}
@@ -1993,6 +2123,40 @@ const LocalEyeSlashIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 const LocalEmailIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg {...props} fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+  </svg>
+);
+
+const NewModernHomeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 9.5l9-7 9 7V20a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+    <path d="M9 22V12h6v10" />
+  </svg>
+);
+
+const NewSearchIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+);
+
+const NewBookmarkNavIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
+  </svg>
+);
+
+const NewProfileIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg {...props} viewBox="0 0 512 512" fill="none" stroke="currentColor" strokeWidth="32" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="256" cy="256" r="208" />
+    <circle cx="256" cy="200" r="80" />
+    <path d="M416 432c0-70.7-57.3-128-128-128s-128 57.3-128 128" />
+  </svg>
+);
+
+const NewFilterIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg {...props} viewBox="0 0 512 512" fill="none" stroke="currentColor" strokeWidth="32" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M32 64h448c35.3 0 53 42.9 28.3 68.3L320 320v112c0 14.2-16.2 22.1-27.3 13.3l-64-48A16 16 0 0 1 224 384V320L51.7 132.3C27 106.9 44.7 64 80 64z" />
   </svg>
 );
 
