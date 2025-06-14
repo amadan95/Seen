@@ -1,6 +1,5 @@
 import { User, Follow } from './types';
 import { DEFAULT_USER_ID } from './constants';
-import { eventService } from './eventService';
 
 // ----- LocalStorage helpers -----
 const USERS_KEY = 'users';
@@ -60,25 +59,13 @@ export const userService = {
     followUser(targetId: string, followerId: string = DEFAULT_USER_ID) {
         if (this.isFollowing(targetId, followerId) || targetId === followerId) return;
         const follows = this.getAllFollows();
-        const createdAt = new Date().toISOString();
-        follows.push({ followerId, followingId: targetId, createdAt });
-        eventService.track({
-            user_id: followerId,
-            event_type: 'follow',
-            extra: { followingId: targetId },
-            created_at: createdAt,
-        });
+        follows.push({ followerId, followingId: targetId, createdAt: new Date().toISOString() });
         this.saveAllFollows(follows);
     },
 
     unfollowUser(targetId: string, followerId: string = DEFAULT_USER_ID) {
         const follows = this.getAllFollows().filter((f) => !(f.followerId === followerId && f.followingId === targetId));
         this.saveAllFollows(follows);
-        eventService.track({
-            user_id: followerId,
-            event_type: 'unfollow',
-            extra: { followingId: targetId },
-        });
     },
 
     getFollowers(userId: string): User[] {

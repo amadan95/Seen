@@ -1,13 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-// In your deployment platform (Vercel, Netlify, etc.)
-// set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_ANON) {
-  console.warn('Supabase env vars missing: SUPABASE_URL & SUPABASE_ANON_KEY');
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Supabase URL or Anon Key is missing. Make sure to set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.');
 }
 
-export const supabase = createClient(SUPABASE_URL ?? '', SUPABASE_ANON ?? ''); 
+export const supabase = createClient(supabaseUrl, supabaseAnonKey); 
