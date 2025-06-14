@@ -4,7 +4,8 @@ import { MediaItem, Reaction, RatedItem, TMDBGenre, CastMember, CrewMember, Epis
 import { REACTION_EMOJIS, REACTION_LABELS, TMDB_IMAGE_BASE_URL_W500, TMDB_IMAGE_BASE_URL_ORIGINAL, ACCENT_COLOR_CLASS_TEXT, ACCENT_COLOR_CLASS_BG, ACCENT_COLOR_CLASS_BG_HOVER, ACCENT_COLOR_CLASS_BORDER, ACCENT_COLOR_CLASS_RING } from './constants';
 // Fix: Add ListBulletIcon to icons import
 import { XMarkIcon, EyeIcon, StarIcon, CheckIcon, QuestionMarkCircleIcon, UserIcon, ChevronDoubleRightIcon, ChevronDoubleLeftIcon, ChatBubbleLeftEllipsisIcon, InformationCircleIcon, ArrowUpIcon, ArrowDownIcon, HeartIcon, ChatBubbleOvalLeftEllipsisIcon, PlusCircleIcon, PencilIcon, TrashIcon, FilmIcon, TvIcon, RectangleStackIcon, ListBulletIcon, BookmarkIcon, BookmarkSquareIcon, CheckCircleIcon, SparklesIcon } from './icons'; // Added BookmarkIcon, BookmarkSquareIcon, CheckCircleIcon, SparklesIcon
-import { tmdbService, userListService } from './services';
+import { tmdbService, geminiService, userListService } from './services';
+import { eventService } from './eventService';
 import { Link } from 'react-router-dom'; // For navigation
 
 // --- Skeleton Loader ---
@@ -15,7 +16,7 @@ interface SkeletonProps {
   height?: string | number;
 }
 export const Skeleton: React.FC<SkeletonProps> = ({ className, variant = 'rect', width, height }) => {
-  const baseStyle = `animate-pulse bg-slate-700`;
+  const baseStyle = `animate-pulse bg-gray-800`;
   let variantStyle = '';
   switch(variant) {
     case 'text': variantStyle = `h-4 my-1 rounded-md`; break;
@@ -52,7 +53,7 @@ export const PosterImage: React.FC<PosterImageProps> = ({ path, alt, className, 
   if (!loaded) return <Skeleton className={className || 'w-full h-full'} />;
   if (error || !imageUrl) {
     return (
-      <div className={`flex items-center justify-center bg-slate-700 text-slate-500 rounded-lg ${className || 'w-full h-full'}`}>
+      <div className={`flex items-center justify-center bg-brand-surface text-gray-500 rounded-lg ${className || 'w-full h-full'}`}>
         {iconType === 'person' ? <UserIcon className="w-1/2 h-1/2" /> : <QuestionMarkCircleIcon className="w-1/2 h-1/2" />}
       </div>
     );
@@ -146,7 +147,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
 
   return (
     <div 
-      className={`bg-neutral-800 rounded-lg shadow-md overflow-hidden group transform hover:scale-105 hover:bg-neutral-700/60 transition-all duration-300 cursor-pointer ${className}`}
+      className={`bg-brand-surface rounded-lg shadow-lg overflow-hidden group transform hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 cursor-pointer ${className}`}
       onClick={() => onClick?.(item)}
       role="button"
       tabIndex={0}
@@ -160,7 +161,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
           <div className="absolute top-1.5 right-1.5 flex flex-col space-y-1.5 z-10"> {/* Adjusted positioning and layout */}
             <button 
               onClick={handleSeenClick}
-              className={`p-1.5 rounded-full transition-colors transform hover:scale-110 ${isSeen ? 'bg-green-500/90 hover:bg-green-400/95' : 'bg-slate-800/80 hover:bg-slate-700/90 backdrop-blur-sm'}`}
+              className={`p-1.5 rounded-full transition-colors transform hover:scale-110 ${isSeen ? 'bg-green-500/90 hover:bg-green-400/95' : 'bg-gray-800/80 hover:bg-gray-700/90 backdrop-blur-sm'}`}
               aria-label={isSeen ? "Marked as Seen" : "Mark as Seen"}
               title={isSeen ? "Marked as Seen" : "Mark as Seen"}
             >
@@ -178,7 +179,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
             )}
             <button 
               onClick={handleWatchlistClick}
-              className={`p-1.5 rounded-full transition-colors transform hover:scale-110 ${isWatchlisted ? 'bg-cyan-500/90 hover:bg-cyan-400/95' : 'bg-slate-800/80 hover:bg-slate-700/90 backdrop-blur-sm'}`}
+              className={`p-1.5 rounded-full transition-colors transform hover:scale-110 ${isWatchlisted ? 'bg-brand-primary/90 hover:bg-brand-primary/100' : 'bg-gray-800/80 hover:bg-gray-700/90 backdrop-blur-sm'}`}
               aria-label={isWatchlisted ? "On Watchlist" : "Add to Watchlist"}
               title={isWatchlisted ? "On Watchlist" : "Add to Watchlist"}
             >
@@ -191,28 +192,17 @@ export const MediaCard: React.FC<MediaCardProps> = ({
           <div className="absolute top-1.5 right-1.5 bg-black/60 backdrop-blur-sm text-white text-xs font-bold px-1.5 py-0.5 rounded-md flex items-center">
             {/* If action icons are present, adjust recScore position, otherwise keep it top-right */}
             {/* This might need adjustment based on final icon placement. For now, it will overlay icons if they are also top-right */}
-            <StarIcon className="w-3 h-3 text-cyan-400 mr-0.5" />
+            <StarIcon className="w-3 h-3 text-brand-primary mr-0.5" />
             {recScore.toFixed(1)} Rec
           </div>
         )}
       </div>
       <div className="p-2.5">
-        <h3 className="text-sm font-semibold truncate text-neutral-100 group-hover:text-white transition-colors" title={title}>{title}</h3>
-        {context === 'personCredits' && (item as PersonCreditItem).character && (
-            <p className="text-xs text-neutral-400 truncate" title={(item as PersonCreditItem).character}>As: {(item as PersonCreditItem).character}</p>
+        <h3 className="font-bold text-sm text-brand-text-primary truncate transition-colors group-hover:text-brand-primary">{title}</h3>
+        <p className="text-xs text-brand-text-secondary">{releaseYear}</p>
+        {context === 'personCredits' && 'character' in item && (
+          <p className="text-xs text-brand-text-secondary italic truncate">as {item.character}</p>
         )}
-        {context === 'personCredits' && (item as PersonCreditItem).job && (
-            <p className="text-xs text-neutral-400 truncate" title={(item as PersonCreditItem).job}>Job: {(item as PersonCreditItem).job}</p>
-        )}
-        <div className="flex items-center justify-between text-xs text-neutral-400 mt-0.5">
-          <span>{releaseYear}</span>
-          {item.vote_average > 0 && context !== 'personCredits' && (
-             <div className="flex items-center">
-               <StarIcon className="w-3 h-3 text-yellow-500 mr-0.5" />
-               <span className="text-neutral-300">{item.vote_average.toFixed(1)}</span>
-             </div>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -232,37 +222,26 @@ export const RatedMediaCard: React.FC<RatedMediaCardProps> = ({ item, onClick })
 
   return (
     <div 
-      className={`flex bg-slate-800 rounded-xl shadow-lg overflow-hidden hover:bg-slate-700/70 transition-colors duration-200 cursor-pointer border border-slate-700 hover:${ACCENT_COLOR_CLASS_BORDER}`}
-      onClick={() => onClick?.(item)} role="button" tabIndex={0} onKeyPress={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick?.(item);}}
+      className="bg-brand-surface rounded-lg shadow-md overflow-hidden group flex items-center space-x-4 p-3 transition-all duration-200 hover:bg-gray-800 cursor-pointer"
+      onClick={() => onClick?.(item)}
     >
-      <div className="w-28 md:w-32 flex-shrink-0">
-        <PosterImage path={item.poster_path} alt={title} className="w-full h-full object-cover" />
+      <div className="w-16 flex-shrink-0">
+        <PosterImage path={item.poster_path} alt={title || 'Media poster'} className="w-16 h-24 object-cover rounded" />
       </div>
-      <div className="p-4 flex-grow flex flex-col justify-between relative">
-        <div className="pr-16 md:pr-20">
-          <h3 className="text-md md:text-lg font-semibold text-slate-100">{title}</h3>
-          <p className="text-xs md:text-sm text-slate-400">{releaseYear} &bull; {item.genres?.map(g => g.name).join(', ') || 'N/A'}</p>
-          <p className="text-xs md:text-sm text-slate-400">Runtime: {(item as RankedItem).runtimeCategory} &bull; Lang: {item.original_language?.toUpperCase()}</p>
-          <p className="text-xs md:text-sm mt-1 line-clamp-2 md:line-clamp-3 text-slate-300">{item.overview}</p>
-        </div>
-        {displayScore !== null && (
-          <div 
-            className={`absolute top-1/2 right-4 transform -translate-y-1/2 
-                        w-10 h-10 md:w-11 md:h-11 rounded-full border-2 ${ACCENT_COLOR_CLASS_BORDER} 
-                        flex items-center justify-center flex-shrink-0`}
-          >
-            <p className={`text-sm md:text-base font-semibold ${ACCENT_COLOR_CLASS_TEXT}`}>{displayScore.toFixed(1)}</p>
-          </div>
-        )}
-        <div className="mt-3">
-          {item.userNotes && 
-            <div className="flex items-center text-slate-500">
-                <ChatBubbleLeftEllipsisIcon className="w-4 h-4 inline-block mr-1" title="Has notes"/> 
-                <span className="text-xs">Notes</span>
-            </div>
-          }
+      <div className="flex-grow overflow-hidden">
+        <h3 className="font-bold text-md text-brand-text-primary truncate">{title}</h3>
+        <p className="text-sm text-brand-text-secondary">{releaseYear}</p>
+        <div className="flex items-center mt-2">
+          <span className="text-2xl mr-2">{REACTION_EMOJIS[item.userReaction]}</span>
+          <span className="text-sm font-semibold text-brand-text-primary">{REACTION_LABELS[item.userReaction]}</span>
         </div>
       </div>
+      {displayScore !== null && (
+        <div className="flex flex-col items-center justify-center px-4">
+          <span className="text-2xl font-bold text-brand-primary">{displayScore.toFixed(1)}</span>
+          <span className="text-xs text-brand-text-secondary">Score</span>
+        </div>
+      )}
     </div>
   );
 };
@@ -270,14 +249,16 @@ export const RatedMediaCard: React.FC<RatedMediaCardProps> = ({ item, onClick })
 // --- Reaction Picker ---
 interface ReactionPickerProps { onSelectReaction: (reaction: Reaction) => void; }
 export const ReactionPicker: React.FC<ReactionPickerProps> = ({ onSelectReaction }) => (
-  <div className="flex justify-around items-center py-4">
-    {(Object.keys(Reaction) as Array<keyof typeof Reaction>).map((key) => (
-      <button key={Reaction[key]} onClick={() => onSelectReaction(Reaction[key])}
-        className={`flex flex-col items-center p-3 rounded-xl hover:bg-slate-600 transition-all duration-200 focus:outline-none focus:ring-2 ${ACCENT_COLOR_CLASS_RING} ring-offset-2 ring-offset-slate-800 transform hover:scale-110`}
-        aria-label={REACTION_LABELS[Reaction[key]]}
+  <div className="flex justify-around items-center bg-brand-surface p-4 rounded-xl">
+    {Object.values(Reaction).map(reaction => (
+      <button 
+        key={reaction} 
+        onClick={() => onSelectReaction(reaction)} 
+        className="flex flex-col items-center space-y-2 text-brand-text-secondary hover:text-brand-text-primary transition-transform duration-200 hover:scale-110"
+        title={REACTION_LABELS[reaction]}
       >
-        <span className="text-5xl">{REACTION_EMOJIS[Reaction[key]]}</span>
-        <span className="mt-2 text-sm text-slate-300">{REACTION_LABELS[Reaction[key]]}</span>
+        <span className="text-4xl">{REACTION_EMOJIS[reaction]}</span>
+        <span className="text-xs font-semibold uppercase">{REACTION_LABELS[reaction]}</span>
       </button>
     ))}
   </div>
@@ -286,13 +267,12 @@ export const ReactionPicker: React.FC<ReactionPickerProps> = ({ onSelectReaction
 // --- Notes Textarea ---
 interface NotesTextareaProps { value: string; onChange: (value: string) => void; placeholder?: string; }
 export const NotesTextarea: React.FC<NotesTextareaProps> = ({ value, onChange, placeholder = "Add your personal notes or review..." }) => (
-  <div className="mt-4">
-    <label htmlFor="userNotes" className="block text-sm font-medium text-slate-300 mb-1">Your Notes (Optional)</label>
-    <textarea id="userNotes" rows={3}
-      className="w-full p-2 bg-slate-700 text-slate-200 rounded-lg border border-slate-600 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-colors scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-700"
-      placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)}
-    />
-  </div>
+  <textarea
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    placeholder={placeholder}
+    className="w-full h-24 p-3 bg-brand-surface border border-gray-700 rounded-lg text-brand-text-primary placeholder-gray-500 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition"
+  />
 );
 
 // --- Pairwise Comparison Modal ---
@@ -318,53 +298,31 @@ export const PairwiseComparisonModal: React.FC<PairwiseComparisonModalProps> = (
   if (!isOpen || !itemA || !itemB) return null;
   
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
-      <div className="bg-slate-800 p-4 sm:p-6 rounded-xl shadow-2xl w-full max-w-3xl text-center border border-slate-700 relative">
-        <button
-          onClick={onClose}
-          className="absolute top-3 left-3 sm:top-4 sm:left-4 text-slate-400 hover:text-white transition-colors z-10"
-          aria-label="Close comparison"
-        >
-          <XMarkIcon className="w-6 h-6 sm:w-7 sm:h-7" />
-        </button>
-        <h2 className={`text-2xl font-semibold mb-6 ${ACCENT_COLOR_CLASS_TEXT}`}>Which do you prefer?</h2>
-        <div className="flex flex-row justify-center items-start gap-x-3 w-full mb-6">
-          {[itemA, itemB].map((item) => (
-            <div 
-              key={`${item.id}-${item.media_type}`} 
-              onClick={() => onChoose(item)} 
-              role="button" 
-              tabIndex={0} 
-              onKeyPress={(e) => { if (e.key === 'Enter' || e.key === ' ') onChoose(item);}}
-              className="flex-1 min-w-0 max-w-[160px] cursor-pointer group"
-              aria-label={`Choose ${item.title || item.name}`}
-            >
-              <PosterImage 
-                path={item.poster_path} 
-                alt={item.title || item.name || ''} 
-                className="w-full aspect-[2/3] object-cover rounded-md shadow-md group-hover:ring-2 group-hover:ring-cyan-400 ring-offset-slate-800 ring-offset-1 transition-colors"
-              />
-              <div className="mt-2 text-center">
-                <h3 className="font-medium truncate group-hover:text-cyan-400 text-sm sm:text-base md:text-lg">{item.title || item.name}</h3>
-                <p className="text-xs text-slate-400 truncate">{item.genres?.slice(0,2).map(g=>g.name).join(', ')}</p>
-                <p className="text-xs text-slate-400 truncate">{item.media_type === 'movie' ? 'Movie' : 'TV Show'} &bull; {item.original_language?.toUpperCase()}</p>
+    <Modal isOpen={isOpen} onClose={onClose} size="2xl" title="">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-brand-text-primary mb-2">Which do you prefer?</h2>
+        <p className="text-md text-brand-text-secondary mb-6">{comparisonPrompt}</p>
+        <div className="flex justify-center items-stretch gap-4">
+          {[itemA, itemB].map((item, index) => (
+            <div key={item.id} className="w-1/2 cursor-pointer" onClick={() => onChoose(item)}>
+              <div className="bg-brand-surface p-3 rounded-lg h-full flex flex-col justify-between hover:ring-2 hover:ring-brand-primary transition-all">
+                <PosterImage path={item.poster_path} alt={item.title || item.name || ''} className="w-full aspect-[2/3] object-cover rounded-md mb-3" />
+                <h3 className="font-bold text-brand-text-primary truncate">{item.title || item.name}</h3>
+                <p className="text-sm text-brand-text-secondary">{item.release_date?.substring(0,4) || item.first_air_date?.substring(0,4)}</p>
               </div>
             </div>
           ))}
         </div>
         {onTooTough && (
-          <div className="mt-12 flex justify-center">
-            <button 
-              onClick={onTooTough} 
-              className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors font-semibold text-xs"
-              aria-label="Too tough to call"
-            >
-              Too tough
-            </button>
-          </div>
+          <button 
+            onClick={onTooTough} 
+            className="mt-6 text-sm text-brand-text-secondary hover:text-brand-primary underline"
+          >
+            This is too tough, I like them equally!
+          </button>
         )}
       </div>
-    </div>
+    </Modal>
   );
 };
 
@@ -380,46 +338,60 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, placeholder = "S
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
-  const fetchSuggestions = useCallback(async (query: string) => {
+  const debouncedSearch = useCallback(debounce(async (query: string) => {
     if (query.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
     try {
       const data = await tmdbService.searchMedia(query, 1);
       const validSuggestions = data.results.filter(item => item.media_type === 'movie' || item.media_type === 'tv').slice(0, 5);
       setSuggestions(validSuggestions); setShowSuggestions(validSuggestions.length > 0);
     } catch (error) { console.error("Failed to fetch search suggestions:", error); setSuggestions([]); setShowSuggestions(false); }
-  }, []);
-  const debouncedFetchSuggestions = useCallback(debounce(fetchSuggestions, 300), [fetchSuggestions]);
-  useEffect(() => { debouncedFetchSuggestions(localQuery); }, [localQuery, debouncedFetchSuggestions]);
+  }, 500), []);
+
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => { if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) setShowSuggestions(false); };
+    if (localQuery.length > 2) {
+      setShowSuggestions(true);
+      debouncedSearch(localQuery);
+    } else {
+      setShowSuggestions(false);
+    }
+  }, [localQuery, debouncedSearch]);
+  
+  useEffect(() => {
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    return () => { document.removeEventListener("mousedown", handleClickOutside); };
   }, []);
+
+  const handleClickOutside = (event: MouseEvent) => { if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) setShowSuggestions(false); };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => setLocalQuery(e.target.value);
   const handleSuggestionClick = (suggestion: MediaItem) => {
-    const title = suggestion.title || suggestion.name || ""; setLocalQuery(title); setShowSuggestions(false); onSearch(title.trim());
+    setLocalQuery(suggestion.title || suggestion.name || '');
+    setShowSuggestions(false);
+    onSearch(suggestion.title || suggestion.name || '');
   };
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); setShowSuggestions(false); onSearch(localQuery.trim()); };
 
   return (
-    <div className="relative w-full" ref={searchContainerRef}>
-      <form onSubmit={handleSubmit} className="w-full">
-        <input type="search" value={localQuery} onChange={handleInputChange} onFocus={() => localQuery.length >=2 && suggestions.length > 0 && setShowSuggestions(true)}
-          placeholder={placeholder} className={`w-full p-3.5 bg-slate-700 text-slate-200 rounded-xl border border-slate-600 focus:ring-2 ${ACCENT_COLOR_CLASS_RING} ${ACCENT_COLOR_CLASS_BORDER} outline-none transition-colors placeholder-slate-400`}
-          aria-haspopup="listbox" aria-expanded={showSuggestions}
+    <div ref={searchContainerRef} className="relative w-full max-w-lg mx-auto">
+      <form onSubmit={handleSubmit}>
+        <input
+          type="text"
+          value={localQuery}
+          onChange={handleInputChange}
+          placeholder={placeholder}
+          className="w-full px-4 py-2 text-brand-text-primary bg-brand-surface border-2 border-gray-700 rounded-full focus:outline-none focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-colors"
         />
       </form>
       {showSuggestions && suggestions.length > 0 && (
-        <ul className="absolute top-full left-0 right-0 mt-1.5 bg-slate-700 border border-slate-600 rounded-xl shadow-xl z-20 overflow-hidden max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-500 scrollbar-track-slate-700" role="listbox">
-          {suggestions.map((item) => (
-            <li key={`${item.id}-${item.media_type}`} onClick={() => handleSuggestionClick(item)} onKeyPress={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSuggestionClick(item);}}
-              className="flex items-center p-3 hover:bg-slate-600 cursor-pointer transition-colors" role="option" aria-selected="false" tabIndex={0}>
-              <PosterImage path={item.poster_path} alt={item.title || item.name || "Suggestion poster"} className="w-10 h-14 object-cover rounded-md mr-3 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-slate-100 truncate">{item.title || item.name}</p>
-                <p className="text-xs text-slate-400">{item.media_type === 'movie' ? 'Movie' : 'TV Show'} {(item.release_date || item.first_air_date) && ` • ${(item.release_date || item.first_air_date)!.substring(0,4)}`}</p>
-              </div>
+        <ul className="absolute z-10 w-full mt-2 bg-brand-surface border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+          {suggestions.map(item => (
+            <li 
+              key={item.id}
+              onClick={() => handleSuggestionClick(item)}
+              className="px-4 py-3 cursor-pointer hover:bg-brand-primary"
+            >
+              <span className="font-medium text-brand-text-primary">{item.title || item.name}</span>
+              <span className="text-sm text-brand-text-secondary ml-2">({item.release_date?.substring(0,4) || item.first_air_date?.substring(0,4)})</span>
             </li>
           ))}
         </ul>
@@ -432,15 +404,26 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, placeholder = "S
 interface ModalProps { isOpen: boolean; onClose: () => void; title?: string; children: React.ReactNode; size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl'; }
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md' }) => {
   if (!isOpen) return null;
-  const sizeClasses: Record<typeof size, string> = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-xl', '2xl': 'max-w-2xl', '3xl': 'max-w-3xl' };
+
+  const sizeClasses = {
+    sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-xl', '2xl': 'max-w-2xl', '3xl': 'max-w-3xl'
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby={title ? "modal-title" : undefined}>
-      <div className={`bg-slate-800 p-6 rounded-xl shadow-2xl w-full ${sizeClasses[size]} max-h-[90vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-700 border border-slate-700`} onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-6">
-          {title && <h2 id="modal-title" className={`text-2xl font-semibold ${ACCENT_COLOR_CLASS_TEXT}`}>{title}</h2>}
-          <button onClick={onClose} className="text-slate-400 hover:text-white" aria-label="Close modal"><XMarkIcon className="w-7 h-7" /></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-70 backdrop-blur-sm" onClick={onClose}>
+      <div 
+        className={`bg-brand-surface text-brand-text-primary rounded-xl shadow-2xl w-full ${sizeClasses[size]} p-6 m-4 transform transition-all duration-300 ease-in-out scale-95 opacity-0 animate-scale-in`}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center pb-3 border-b border-gray-700">
+          <h2 className="text-xl font-bold text-brand-text-primary">{title}</h2>
+          <button onClick={onClose} className="text-brand-text-secondary hover:text-white transition-colors">
+            <XMarkIcon className="w-6 h-6" />
+          </button>
         </div>
-        {children}
+        <div className="mt-4">
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -449,41 +432,44 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
 // --- Cast Card ---
 interface CastCardProps { member: CastMember; onClick: (personId: number) => void; }
 export const CastCard: React.FC<CastCardProps> = ({ member, onClick }) => (
-  <div onClick={() => onClick(member.id)} role="button" tabIndex={0} onKeyPress={e => {if(e.key === 'Enter' || e.key === ' ') onClick(member.id);}}
-    className="bg-slate-800 rounded-xl shadow-lg overflow-hidden w-36 flex-shrink-0 border border-slate-700 hover:border-cyan-500 transition-colors cursor-pointer">
-    <PosterImage path={member.profile_path} alt={member.name} className="w-full h-48 object-cover" iconType="person"/>
-    <div className="p-2.5">
-      <p className="text-sm font-semibold truncate text-slate-100" title={member.name}>{member.name}</p>
-      <p className="text-xs text-slate-400 truncate" title={member.character}>{member.character}</p>
+  <div className="flex flex-col items-center text-center cursor-pointer group" onClick={() => onClick(member.id)}>
+    <div className="w-24 h-24 mb-2 rounded-full overflow-hidden border-2 border-transparent group-hover:border-brand-primary transition-all duration-200">
+      <PosterImage path={member.profile_path} alt={member.name} className="w-full h-full object-cover" iconType='person'/>
     </div>
+    <p className="font-bold text-sm text-brand-text-primary">{member.name}</p>
+    <p className="text-xs text-brand-text-secondary">{member.character}</p>
   </div>
 );
 
 // --- Crew Member Display (for MediaDetailPage) ---
 interface CrewMemberDisplayProps { member: CrewMember; onClick: (personId: number) => void; }
 export const CrewMemberDisplay: React.FC<CrewMemberDisplayProps> = ({member, onClick}) => (
-    <button 
-        onClick={() => onClick(member.id)}
-        className="text-left p-2 hover:bg-slate-700 rounded-md transition-colors w-full"
-    >
-        <p className="text-sm font-medium text-slate-200">{member.name}</p>
-        <p className="text-xs text-slate-400">{member.job} ({member.department})</p>
-    </button>
+  <div 
+    className="bg-brand-surface p-2 rounded-lg flex items-center space-x-3 cursor-pointer hover:bg-gray-800"
+    onClick={() => onClick(member.id)}
+  >
+    <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
+      <PosterImage path={member.profile_path} alt={member.name} iconType='person' className="w-full h-full object-cover"/>
+    </div>
+    <div>
+      <p className="font-semibold text-sm text-brand-text-primary">{member.name}</p>
+      <p className="text-xs text-brand-text-secondary">{member.job}</p>
+    </div>
+  </div>
 );
 
 // --- Episode Card ---
 interface EpisodeCardProps { episode: Episode; showStill?: boolean; }
 export const EpisodeCard: React.FC<EpisodeCardProps> = ({ episode, showStill = true }) => (
-  <div className="bg-slate-800 rounded-xl shadow-lg overflow-hidden flex border border-slate-700">
-    {showStill && episode.still_path && (<div className="w-36 h-24 flex-shrink-0"><PosterImage path={episode.still_path} alt={`Still from ${episode.name}`} className="w-full h-full object-cover" /></div>)}
-    {!showStill && episode.still_path === null && (<div className="w-36 h-24 flex-shrink-0"><div className="w-full h-full bg-slate-700 rounded-l-xl flex items-center justify-center"><QuestionMarkCircleIcon className="w-10 h-10 text-slate-500" /></div></div>)}
-    <div className="p-3.5 flex-grow">
-      <h4 className="text-sm font-semibold text-slate-100">S{String(episode.season_number).padStart(2,'0')}E{String(episode.episode_number).padStart(2,'0')}: {episode.name}</h4>
-      <div className="flex items-center space-x-2 text-xs text-slate-400 mt-0.5">
-        {episode.air_date && <span>Air Date: {new Date(episode.air_date).toLocaleDateString()}</span>}
-        {episode.vote_average > 0 && (<div className="flex items-center"><StarIcon className="w-3 h-3 text-yellow-400 mr-0.5"/><span>{episode.vote_average.toFixed(1)}</span></div>)}
+  <div className="bg-brand-surface rounded-lg overflow-hidden flex space-x-4 p-3 items-start">
+    {showStill && (
+      <div className="w-32 h-20 flex-shrink-0">
+        <PosterImage path={episode.still_path} alt={`Still from ${episode.name}`} className="w-full h-full object-cover rounded-md" />
       </div>
-      <p className="text-xs text-slate-300 mt-1.5 line-clamp-2">{episode.overview || "No overview available."}</p>
+    )}
+    <div className="flex-grow">
+      <h4 className="font-bold text-brand-text-primary">{episode.episode_number}. {episode.name}</h4>
+      <p className="text-sm text-brand-text-secondary mt-1 line-clamp-2">{episode.overview}</p>
     </div>
   </div>
 );
@@ -493,31 +479,33 @@ interface ComparisonSummaryModalProps { isOpen: boolean; onClose: () => void; ra
 export const ComparisonSummaryModal: React.FC<ComparisonSummaryModalProps> = ({ isOpen, onClose, rankedItem, comparisonHistory, totalComparisonsMade }) => {
   if (!isOpen || !rankedItem) return null;
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Ranking Complete!" size="lg">
-      <div className="space-y-5">
-        <div>
-          <h3 className={`text-xl font-semibold ${ACCENT_COLOR_CLASS_TEXT}`}>{rankedItem.title || rankedItem.name}</h3>
-          <p className="text-slate-200">Your new score: <span className="font-bold text-2xl">{rankedItem.personalScore.toFixed(1)}/10</span></p>
-          <p className="text-slate-300">Placed at rank: <span className="font-bold">#{rankedItem.rank + 1}</span> in its category.</p>
-        </div>
-        <div className="border-t border-slate-700 pt-4">
-          <h4 className="font-semibold mb-2 text-slate-100">Comparison Journey ({totalComparisonsMade} step{totalComparisonsMade !== 1 ? 's' : ''}):</h4>
-          {comparisonHistory.length === 0 ? (<p className="text-sm text-slate-400">No direct comparisons were needed for placement.</p>) : (
-            <ul className="space-y-2.5 max-h-60 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-700">
-              {comparisonHistory.map((step, index) => (
-                <li key={index} className="text-sm p-3 bg-slate-700 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="truncate font-medium text-slate-200">{rankedItem.title || rankedItem.name}</span>
-                    {step.userPreferredNewItem ? <ChevronDoubleRightIcon className="w-5 h-5 text-green-400 mx-2 flex-shrink-0" title="Preferred"/> : <ChevronDoubleLeftIcon className="w-5 h-5 text-red-400 mx-2 flex-shrink-0" title="Not Preferred"/>}
-                    <span className="truncate text-right text-slate-300">{step.itemComparedAgainst.title || step.itemComparedAgainst.name}</span>
-                  </div>
-                  {step.promptUsed && <p className="text-xs text-slate-500 mt-1 italic">Prompt: "{step.promptUsed}"</p>}
-                </li>
-              ))}
+    <Modal isOpen={isOpen} onClose={onClose} size="lg" title="Ranking Complete!">
+      <div className="p-4 text-center">
+        <h3 className="text-2xl font-bold text-brand-primary mb-2">New Rank for {rankedItem.title || rankedItem.name}!</h3>
+        <p className="text-lg text-brand-text-primary">
+          After {totalComparisonsMade} comparison{totalComparisonsMade === 1 ? '' : 's'}, it's ranked <span className="font-bold">#{rankedItem.rank + 1}</span> in its category.
+        </p>
+        <div className="my-6 w-full bg-brand-surface p-4 rounded-lg">
+            <h4 className="font-bold text-lg text-brand-text-primary border-b border-gray-700 pb-2 mb-3">Comparison Details:</h4>
+            <ul className="space-y-2 text-left">
+                {comparisonHistory.map((step, index) => (
+                    <li key={index} className="text-sm flex justify-between items-center p-2 rounded-md bg-gray-800">
+                        <span className="text-brand-text-secondary">
+                          Compared with <span className='font-semibold text-brand-text-primary'>{step.itemComparedAgainst.title || step.itemComparedAgainst.name}</span>
+                        </span>
+                        <span className={`font-bold px-2 py-1 rounded-md text-xs ${step.userPreferredNewItem ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                            {step.userPreferredNewItem ? 'PREFERRED' : 'LOST'}
+                        </span>
+                    </li>
+                ))}
             </ul>
-          )}
         </div>
-        <button onClick={onClose} className={`mt-6 w-full px-6 py-3 ${ACCENT_COLOR_CLASS_BG} ${ACCENT_COLOR_CLASS_BG_HOVER} text-white rounded-lg transition-colors font-semibold text-lg`}>Got it!</button>
+        <button
+          onClick={onClose}
+          className="w-full py-2 px-4 bg-brand-primary text-white font-bold rounded-lg hover:bg-opacity-80 transition-all"
+        >
+          Awesome!
+        </button>
       </div>
     </Modal>
   );
@@ -526,29 +514,38 @@ export const ComparisonSummaryModal: React.FC<ComparisonSummaryModalProps> = ({ 
 // --- Watch Provider Display ---
 interface WatchProviderDisplayProps { providers: WatchProviderCountryResult | undefined; itemTitle: string; }
 export const WatchProviderDisplay: React.FC<WatchProviderDisplayProps> = ({ providers, itemTitle }) => {
-  if (!providers) return <p className="text-sm text-slate-500">Watch provider information not available.</p>;
-  const providerSections: { title: string; list?: WatchProviderDetails[] }[] = [
-    { title: "Stream", list: providers.flatrate }, { title: "Rent", list: providers.rent }, { title: "Buy", list: providers.buy },
-    { title: "Ads", list: providers.ads }, { title: "Free", list: providers.free },
-  ].filter(section => section.list && section.list.length > 0);
-  if (providerSections.length === 0) return <p className="text-sm text-slate-500">No watch options found for your region (US default).</p>;
+  if (!providers || Object.keys(providers).length === 0) {
+    return (
+      <div className="p-4 bg-brand-surface rounded-lg mt-4">
+        <p className="text-brand-text-secondary">No streaming information available for your region.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
-      {providerSections.map(section => (
-        <div key={section.title}>
-          <h3 className="text-md font-semibold text-slate-300 mb-2">{section.title}</h3>
-          <div className="flex flex-wrap gap-3">
-            {section.list?.sort((a,b) => a.display_priority - b.display_priority).map(p => (
-              <a key={p.provider_id} href={providers.link || '#'} target="_blank" rel="noopener noreferrer" title={p.provider_name}
-                className="flex items-center bg-slate-700/60 hover:bg-slate-600/80 p-2 rounded-lg transition-colors duration-150 shadow">
-                <img src={`${TMDB_IMAGE_BASE_URL_W500}${p.logo_path}`} alt={p.provider_name} className="w-10 h-10 object-contain rounded-md" />
-                <span className="text-xs text-slate-300 ml-2 hidden sm:inline">{p.provider_name}</span>
-              </a>
-            ))}
-          </div>
+    <div className="p-4 bg-brand-surface rounded-lg mt-4">
+      <h3 className="font-bold text-lg text-brand-text-primary mb-3">Where to Watch</h3>
+      {Object.entries(providers).map(([country, data]) => (
+        <div key={country}>
+          <a href={data.link} target="_blank" rel="noopener noreferrer" className="text-brand-text-secondary hover:text-brand-primary text-sm mb-3 block">
+            Watch options for {itemTitle} in your region
+          </a>
+          {['flatrate', 'rent', 'buy'].map(type => {
+            const providerList = data[type as keyof WatchProviderDetails];
+            if (!providerList || providerList.length === 0) return null;
+            return (
+              <div key={type} className="mb-2">
+                <h4 className="font-semibold text-brand-text-primary capitalize text-md mb-1">{type === 'flatrate' ? 'Stream' : type}</h4>
+                <div className="flex flex-wrap gap-2">
+                  {providerList.map((p: WatchProviderDetails) => (
+                    <img key={p.provider_id} src={`${TMDB_IMAGE_BASE_URL_W500}${p.logo_path}`} alt={p.provider_name} title={p.provider_name} className="w-10 h-10 rounded-md" />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ))}
-      {providers.link && <a href={providers.link} target="_blank" rel="noopener noreferrer" className={`text-xs ${ACCENT_COLOR_CLASS_TEXT} hover:underline mt-2 inline-flex items-center`}>View all options on TMDB <InformationCircleIcon className="w-3 h-3 ml-1"/></a>}
     </div>
   );
 };
@@ -564,23 +561,21 @@ interface CustomListItemCardProps {
   onReorder: (listId: string, itemIndex: number, direction: 'up' | 'down') => void;
 }
 export const CustomListItemCard: React.FC<CustomListItemCardProps> = ({ item, listId, index, totalItems, onClick, onRemove, onReorder }) => {
-  const title = item.title || item.name || 'Untitled';
-  const releaseYear = item.release_date?.substring(0,4) || item.first_air_date?.substring(0,4) || '';
   return (
-    <div className={`flex bg-slate-800 rounded-xl shadow-lg overflow-hidden border border-slate-700`}>
-      <div className="w-20 md:w-24 flex-shrink-0 cursor-pointer" onClick={() => onClick(item)}>
-        <PosterImage path={item.poster_path} alt={title} className="w-full h-full object-cover" />
+    <div className="flex items-center space-x-4 bg-brand-surface p-2 rounded-lg hover:bg-gray-800 transition-colors">
+      <div className="flex flex-col items-center">
+        <button disabled={index === 0} onClick={() => onReorder(listId, index, 'up')} className="p-1 disabled:opacity-30 disabled:cursor-not-allowed"><ArrowUpIcon className="w-5 h-5 text-brand-text-secondary hover:text-brand-primary"/></button>
+        <span className="font-bold text-lg text-brand-text-primary">{index + 1}</span>
+        <button disabled={index === totalItems - 1} onClick={() => onReorder(listId, index, 'down')} className="p-1 disabled:opacity-30 disabled:cursor-not-allowed"><ArrowDownIcon className="w-5 h-5 text-brand-text-secondary hover:text-brand-primary"/></button>
       </div>
-      <div className="p-3 flex-grow cursor-pointer min-w-0" onClick={() => onClick(item)}>
-        <h3 className="text-sm md:text-base font-semibold text-slate-100 truncate">{title}</h3>
-        <p className="text-xs text-slate-400">{releaseYear} &bull; {item.media_type === 'movie' ? 'Movie' : 'TV Show'}</p>
-        <p className="text-xs text-slate-400 line-clamp-1 md:line-clamp-2">{item.overview}</p>
+      <div className="w-16 h-24 flex-shrink-0 cursor-pointer" onClick={() => onClick(item)}>
+        <PosterImage path={item.poster_path} alt={item.title || item.name || 'poster'} className="w-full h-full object-cover rounded" />
       </div>
-      <div className="p-2 flex flex-col items-center justify-center space-y-1.5 border-l border-slate-700 flex-shrink-0">
-        <button onClick={() => onReorder(listId, index, 'up')} disabled={index === 0} className="p-1.5 text-slate-400 hover:text-cyan-400 disabled:text-slate-600 disabled:cursor-not-allowed transition-colors rounded-md hover:bg-slate-700"><ArrowUpIcon className="w-4 h-4"/></button>
-        <button onClick={() => onReorder(listId, index, 'down')} disabled={index === totalItems - 1} className="p-1.5 text-slate-400 hover:text-cyan-400 disabled:text-slate-600 disabled:cursor-not-allowed transition-colors rounded-md hover:bg-slate-700"><ArrowDownIcon className="w-4 h-4"/></button>
-        <button onClick={() => onRemove(listId, item.id, item.media_type as 'movie'|'tv')} className="p-1.5 text-red-500 hover:text-red-400 transition-colors rounded-md hover:bg-slate-700"><TrashIcon className="w-4 h-4"/></button>
+      <div className="flex-grow cursor-pointer" onClick={() => onClick(item)}>
+        <h4 className="font-bold text-brand-text-primary">{item.title || item.name}</h4>
+        <p className="text-sm text-brand-text-secondary">{item.release_date?.substring(0,4) || item.first_air_date?.substring(0,4)}</p>
       </div>
+      <button onClick={() => onRemove(listId, item.id, item.media_type as 'movie' | 'tv')} className="p-2 text-brand-text-secondary hover:text-brand-secondary"><TrashIcon className="w-5 h-5"/></button>
     </div>
   );
 };

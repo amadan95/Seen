@@ -119,6 +119,27 @@ const AppContent: React.FC = () => {
   const [currentComparison, setCurrentComparison] = useState<{ item1: MediaItem; item2: MediaItem } | null>(null);
   const [isComparisonLoading, setIsComparisonLoading] = useState(false);
 
+  const handleCreateCustomList = (name: string, description?: string) => {
+    const updatedLists = userListService.createCustomList(name, description);
+    setCustomLists(updatedLists);
+  };
+  const handleOpenAddToListModal = (item: MediaItem) => {
+    setSelectedMediaForListAddition(item);
+    setIsAddToListModalOpen(true);
+  };
+  const handleAddItemToCustomList = (listId: string, item: MediaItem) => {
+    const updatedList = userListService.addItemToCustomList(listId, item);
+    if (updatedList) setCustomLists(userListService.getCustomLists());
+  };
+  const handleCreateAndAddToList = (listName: string, item: MediaItem, listDescription?: string) => {
+    const newLists = userListService.createCustomList(listName, listDescription);
+    const newList = newLists.find(l => l.name === listName);
+    if (newList) {
+        userListService.addItemToCustomList(newList.id, item);
+    }
+    setCustomLists(userListService.getCustomLists());
+  };
+
   const proceedToNextComparisonStep = useCallback((session: IterativeComparisonSession) => {
     if (!session.isActive) return;
 
@@ -336,113 +357,86 @@ const AppContent: React.FC = () => {
   }, [authLoading, user, location, navigate]); // Dependencies for this effect
 
   // Conditional return for loading states - NOW ALL HOOKS ARE CALLED BEFORE THIS
-  if (initialLoading || (authLoading && !user && !['/login', '/signup', '/onboarding'].includes(location.pathname))) {
+  if (authLoading || initialLoading) {
     return (
-      <div className="min-h-screen bg-[#111111] text-[#F6F6F6] flex flex-col font-sans items-center justify-center">
+      <div className="flex items-center justify-center h-screen bg-brand-background">
         <LoadingSpinner />
       </div>
     );
   }
 
-  // Helper function (not a hook)
-  const handleCreateCustomList = (name: string, description?: string) => {
-    const updatedLists = userListService.createCustomList(name, description);
-    setCustomLists(updatedLists);
-  };
-  // Helper function (not a hook)
-  const handleOpenAddToListModal = (item: MediaItem) => {
-    setSelectedMediaForListAddition(item);
-    setIsAddToListModalOpen(true);
-  };
-  // Helper function (not a hook)
-  const handleAddItemToCustomList = (listId: string, item: MediaItem) => {
-    const updatedList = userListService.addItemToCustomList(listId, item);
-    if (updatedList) setCustomLists(userListService.getCustomLists());
-  };
-  // Helper function (not a hook)
-  const handleCreateAndAddToList = (listName: string, item: MediaItem, listDescription?: string) => {
-    const newLists = userListService.createCustomList(listName, listDescription);
-    const newList = newLists.find(l => l.name === listName);
-    if (newList) {
-        userListService.addItemToCustomList(newList.id, item);
-    }
-    setCustomLists(userListService.getCustomLists());
-  };
+  if (!user) {
+    // User not authenticated, show public routes
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="*" element={<LoginPage />} />
+      </Routes>
+    );
+  }
 
-  const handleCategorySelected = (category: string) => {
-    console.log("Selected category from TopNav:", category);
-    switch (category) {
-      case "Trending": setCurrentExploreTab('trendingMovies'); break;
-      case "Movies": setCurrentExploreTab('moviesOnly'); break;
-      case "TV shows": setCurrentExploreTab('tvShowsOnly'); break;
-      case "Recommendations": setCurrentExploreTab('forYou'); break;
-      default: setCurrentExploreTab('trendingMovies'); break;
-    }
-  };
-
-  const commonPageProps: BasePageProps = {
+  const pageProps: BasePageProps = {
     userListService,
     watchlist,
     seenList,
     customLists,
-    onAddToWatchlist: handleAddToWatchlist, // Restored
-    onMarkAsSeen: handleMarkAsSeen, // Restored
-    onRemoveFromWatchlist: handleRemoveFromWatchlist, // Restored
+    onAddToWatchlist: handleAddToWatchlist,
+    onMarkAsSeen: handleMarkAsSeen,
+    onRemoveFromWatchlist: handleRemoveFromWatchlist,
     onAddToList: handleOpenAddToListModal,
-    setCustomLists, 
-    openCreateListModal: () => setIsCreateListModalOpen(true)
+    setCustomLists,
+    openCreateListModal: () => setIsCreateListModalOpen(true),
+    onReRank: handleReRank,
   };
 
+  // User is authenticated, show the main app
   return (
-    <div className="min-h-screen bg-[#111111] text-[#F6F6F6] flex flex-col font-sans">
-      {location.pathname === '/explore' && <TopCategoryNav onCategorySelect={handleCategorySelected} />}
-        <main className="flex-grow container mx-auto px-3 sm:px-4 py-5 sm:py-6 mb-20">
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/signup" element={<SignupPage />} />
-            <Route path="/onboarding" element={<OnboardingPage />} />
-            <Route path="/" element={<FeedPage {...commonPageProps} currentUser={mockUser} onReRank={handleReRank} />} />
-          <Route path="/explore" element={<ExplorePage {...commonPageProps} initialTab={currentExploreTab} watchlist={watchlist} onReRank={handleReRank} />} />
-            <Route path="/mylists" element={<MyListsPage {...commonPageProps} openCreateListModal={() => setIsCreateListModalOpen(true)} />} />
-            <Route path="/mylists/:listId" element={<CustomListPage {...commonPageProps} />} />
-            <Route path="/media/:type/:id" element={<MediaDetailPage {...commonPageProps} onReRank={handleReRank} />} />
-            <Route path="/person/:personId" element={<PersonDetailPage {...commonPageProps} />} />
-            <Route path="/profile" element={<ProfilePage {...commonPageProps} />} /> 
-          </Routes>
-        </main>
+    <div className="bg-brand-background min-h-screen text-brand-text-primary">
+      <main className="pb-20">
+        <Routes>
+          <Route path="/" element={<FeedPage {...pageProps} currentUser={mockUser} />} />
+          <Route path="/explore" element={<ExplorePage {...pageProps} initialTab={currentExploreTab} />} />
+          <Route path="/mylists" element={<MyListsPage {...pageProps} />} />
+          <Route path="/mylists/:listId" element={<CustomListPage {...pageProps} />} />
+          <Route path="/media/:type/:id" element={<MediaDetailPage {...pageProps} />} />
+          <Route path="/person/:personId" element={<PersonDetailPage />} />
+          <Route path="/profile" element={<ProfilePage {...pageProps} />} />
+        </Routes>
+      </main>
       <AppNavigation setCurrentExploreTab={setCurrentExploreTab} />
-        <Modal isOpen={isReactionModalOpen} onClose={() => { setIsReactionModalOpen(false); setCurrentUserNotes("");}} title={`Rate: ${selectedItemForReaction?.title || selectedItemForReaction?.name}`} size="md">
-          {selectedItemForReaction && (<><ReactionPicker onSelectReaction={handleReactionSelected} /><NotesTextarea value={currentUserNotes} onChange={setCurrentUserNotes} />
-            <button onClick={() => { const reactionToSubmit = selectedItemForReaction.media_type && userListService.isSeen(selectedItemForReaction.id, selectedItemForReaction.media_type as 'movie'|'tv')?.userReaction || Reaction.Fine; handleReactionSelected(reactionToSubmit); }}
-              className={`w-full mt-6 py-3 ${ACCENT_COLOR_CLASS_BG} ${ACCENT_COLOR_CLASS_BG_HOVER} text-white font-semibold rounded-lg transition-colors text-lg`}>Save Rating & Notes</button></>
-          )}
-        </Modal>
-        {iterativeComparisonState?.isActive && currentComparison && (
-          <PairwiseComparisonModal 
-            isOpen={true} 
-            onClose={handleCancelIterativeComparison} 
-            itemA={currentComparison.item1} 
-            itemB={currentComparison.item2} 
-            comparisonPrompt={currentPrompt} 
-            onChoose={handleIterativeComparisonChoice} 
-            onTooTough={handleTooToughChoice} // Pass the new handler
-          />
+      <Modal isOpen={isReactionModalOpen} onClose={() => { setIsReactionModalOpen(false); setCurrentUserNotes("");}} title={`Rate: ${selectedItemForReaction?.title || selectedItemForReaction?.name}`} size="md">
+        {selectedItemForReaction && (<><ReactionPicker onSelectReaction={handleReactionSelected} /><NotesTextarea value={currentUserNotes} onChange={setCurrentUserNotes} />
+          <button onClick={() => { const reactionToSubmit = selectedItemForReaction.media_type && userListService.isSeen(selectedItemForReaction.id, selectedItemForReaction.media_type as 'movie'|'tv')?.userReaction || Reaction.Fine; handleReactionSelected(reactionToSubmit); }}
+            className={`w-full mt-6 py-3 ${ACCENT_COLOR_CLASS_BG} ${ACCENT_COLOR_CLASS_BG_HOVER} text-white font-semibold rounded-lg transition-colors text-lg`}>Save Rating & Notes</button></>
         )}
-        <ComparisonSummaryModal 
-          isOpen={comparisonSummaryState.show} 
-          onClose={() => setComparisonSummaryState({ show: false, rankedItem: null, comparisonHistory: [], totalComparisonsMade: 0 })} 
-          rankedItem={comparisonSummaryState.rankedItem} 
-          comparisonHistory={comparisonSummaryState.comparisonHistory} 
-          totalComparisonsMade={comparisonSummaryState.totalComparisonsMade} 
+      </Modal>
+      {iterativeComparisonState?.isActive && currentComparison && (
+        <PairwiseComparisonModal 
+          isOpen={true} 
+          onClose={handleCancelIterativeComparison} 
+          itemA={currentComparison.item1} 
+          itemB={currentComparison.item2} 
+          comparisonPrompt={currentPrompt} 
+          onChoose={handleIterativeComparisonChoice} 
+          onTooTough={handleTooToughChoice} // Pass the new handler
         />
-        <CreateListModal isOpen={isCreateListModalOpen} onClose={() => setIsCreateListModalOpen(false)} onCreate={handleCreateCustomList} />
-        <AddToListModal isOpen={isAddToListModalOpen} onClose={() => setIsAddToListModalOpen(false)} mediaItem={selectedMediaForListAddition} customLists={customLists} onAddToList={handleAddItemToCustomList} onCreateAndAddToList={handleCreateAndAddToList} />
-        {isLoadingGlobal && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[100]"><div className="bg-slate-800 p-5 rounded-xl shadow-xl flex items-center space-x-3 border border-slate-700">
-                <svg className="animate-spin h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                <span className="text-white text-lg">Processing...</span></div></div>
-        )}
-      </div>
+      )}
+      <ComparisonSummaryModal 
+        isOpen={comparisonSummaryState.show} 
+        onClose={() => setComparisonSummaryState({ show: false, rankedItem: null, comparisonHistory: [], totalComparisonsMade: 0 })} 
+        rankedItem={comparisonSummaryState.rankedItem} 
+        comparisonHistory={comparisonSummaryState.comparisonHistory} 
+        totalComparisonsMade={comparisonSummaryState.totalComparisonsMade} 
+      />
+      <CreateListModal isOpen={isCreateListModalOpen} onClose={() => setIsCreateListModalOpen(false)} onCreate={handleCreateCustomList} />
+      <AddToListModal isOpen={isAddToListModalOpen} onClose={() => setIsAddToListModalOpen(false)} mediaItem={selectedMediaForListAddition} customLists={customLists} onAddToList={handleAddItemToCustomList} onCreateAndAddToList={handleCreateAndAddToList} />
+      {isLoadingGlobal && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[100]"><div className="bg-slate-800 p-5 rounded-xl shadow-xl flex items-center space-x-3 border border-slate-700">
+              <svg className="animate-spin h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              <span className="text-white text-lg">Processing...</span></div></div>
+      )}
+    </div>
   );
 };
 
@@ -456,50 +450,39 @@ const App: React.FC = () => {
 };
 
 const NavItem: React.FC<{ to: string; icon: React.ReactNode; label: string; onClick?: () => void }> = ({ to, icon, label, onClick }) => (
-  <NavLink 
-    to={to} 
-    end={to === "/"} 
-    onClick={onClick} // Added onClick passthrough
-    className={({ isActive }) => 
-      `flex flex-col items-center justify-center px-3 py-2.5 text-xs font-medium transition-all duration-200 w-1/4 transform hover:opacity-80 \
-      ${isActive ? 'text-[#F6F6F6]' : 'text-gray-500 hover:text-gray-300'}`
+  <NavLink
+    to={to}
+    onClick={onClick}
+    className={({ isActive }: { isActive: boolean }) =>
+      `flex flex-col items-center justify-center w-full pt-2 pb-1 text-xs transition-colors duration-200 ease-in-out ${
+        isActive ? 'text-brand-primary' : 'text-brand-text-secondary hover:text-white'
+      }`
     }
   >
     {icon}
-    <span className="mt-1.5">{label}</span>
+    <span className="mt-1">{label}</span>
   </NavLink>
 );
 
 const AppNavigation: React.FC<{ setCurrentExploreTab: (tab: 'trendingMovies' | 'trendingShows' | 'search' | 'forYou' | 'moviesOnly' | 'tvShowsOnly') => void }> = ({ setCurrentExploreTab }) => {
-  const { user, loading } = useAuth(); // Get auth state
+  const navigate = useNavigate();
+  const handleExploreClick = () => {
+    // Reset to the default tab when clicking the main explore icon
+    setCurrentExploreTab('trendingMovies'); 
+    navigate('/explore');
+  }
 
   return (
-  <nav className="fixed bottom-0 left-0 right-0 bg-[#1A1A1A]/90 backdrop-blur-md border-t border-gray-700 shadow-t-xl z-40"> {/* Adjusted background and border */}
-    <div className="container mx-auto sm:px-0">
-      <div className="flex justify-around items-center h-16">
-        <NavItem to="/" icon={<NewModernHomeIcon className="w-6 h-6" />} label="Feed" /> {/* Changed to NewModernHomeIcon */}
-        <NavItem 
-          to="/explore" 
-          icon={<NewSearchIcon className="w-6 h-6" />} 
-          label="Explore" 
-          onClick={() => setCurrentExploreTab('trendingMovies')} // Added onClick handler
-        /> {/* Changed to NewSearchIcon */}
-        <NavItem to="/mylists" icon={<NewBookmarkNavIcon className="w-6 h-6" />} label="My Lists" /> {/* Changed to NewBookmarkNavIcon */}
-          {loading ? (
-            <div className="flex flex-col items-center justify-center px-3 py-2.5 text-xs font-medium text-gray-500 w-1/4">
-              <NewUserIcon className="w-6 h-6 animate-pulse" />
-              <span className="mt-1.5">Loading...</span>
-            </div>
-          ) : user ? (
-            <NavItem to="/profile" icon={<NewProfileIcon className="w-6 h-6" />} label="Profile" />
-          ) : (
-            <NavItem to="/login" icon={<NewProfileIcon className="w-6 h-6" />} label="Login" />
-          )}
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-brand-surface border-t border-gray-800 shadow-lg">
+      <div className="flex justify-around max-w-screen-sm mx-auto">
+        <NavItem to="/" icon={<NewHomeIcon className="w-6 h-6" />} label="Feed" />
+        <NavItem to="/explore" icon={<NewExploreIcon className="w-6 h-6" />} label="Explore" onClick={handleExploreClick} />
+        <NavItem to="/mylists" icon={<NewListIcon className="w-6 h-6" />} label="My Lists" />
+        <NavItem to="/profile" icon={<NewUserIcon className="w-6 h-6" />} label="Profile" />
       </div>
-    </div>
-  </nav>
-  ); // Explicit return for the JSX block
-}; // Closing of the component
+    </nav>
+  );
+};
 
 interface BasePageProps {
   userListService: typeof userListService; // Add userListService

@@ -1,6 +1,7 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { TMDB_API_KEY, TMDB_BASE_URL, GEMINI_API_KEY, GEMINI_TEXT_MODEL, DEFAULT_USER_ID, MAX_COMPARISON_CANDIDATES, TMDB_IMAGE_BASE_URL_W500, TMDB_IMAGE_BASE_URL_ORIGINAL } from './constants';
 import { MediaItem, TMDBMovie, TMDBShow, Reaction, RatedItem, WatchlistItem, RankedItem, TMDBGenre, GeminiComparisonPromptRequest, CreditsResponse, TVSeasonDetailsResponse, WatchProviderResponse, TMDBGenreListResponse, CustomList, CustomListMediaItem, PersonDetails, PersonCombinedCreditsResponse, PersonCreditItem } from './types';
+import { eventService } from './eventService';
 
 // --- TMDB Service ---
 interface TMDBListResponse<T> {

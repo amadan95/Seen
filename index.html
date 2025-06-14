@@ -1,63 +1,30 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Seen</title>
-  <style>
-    body {
-      font-family: 'Roboto', sans-serif;
-    }
-    /* Custom scrollbar for webkit browsers - New Dark Theme */
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #1A1A1A; /* Slightly lighter than body for contrast */
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #4A4A4A; /* Darker gray for thumb */
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #6A6A6A; /* Lighter gray for hover */
-    }
-    /* Utility classes for 3D Carousel */
-    .perspective-1000px {
-      perspective: 1000px;
-    }
-    .preserve-3d {
-      transform-style: preserve-3d;
-    }
-    /* Fallback CSS variable for carousel item height, adjust as needed */
-    :root {
-      --carousel-item-height: 300px;
-    }
-    @media (min-width: 640px) { /* sm */
-      :root {
-        --carousel-item-height: 400px;
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Seen: TV & Movie Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        background-color: #121212; /* brand-background */
+        color: #ffffff; /* brand-text-primary */
+        font-family: 'Manrope', sans-serif;
       }
-    }
-  </style>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-<script type="importmap">
-{
-  "imports": {
-    "react/": "https://esm.sh/react@^19.1.0/",
-    "react": "https://esm.sh/react@^19.1.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.0.1",
-    "react-router-dom": "https://esm.sh/react-router-dom@^7.6.1"
-  }
-}
-</script>
-</head>
-<body class="bg-[#111111] text-[#F6F6F6]">
-  <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+    <script>
+      // Remove the old injected style tag by Tailwind if it exists
+      const oldStyle = document.querySelector('style[data-vite-dev-id*="tailwind"]');
+      if (oldStyle) {
+        oldStyle.remove();
+      }
+    </script>
+  </body>
 </html>
