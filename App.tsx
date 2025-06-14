@@ -23,7 +23,8 @@ import { useAuth } from './contexts/AuthContext'; // Import useAuth
 import OnboardingPage from './components/OnboardingPage'; // Added OnboardingPage import
 
 const MAX_COMPARISONS_PER_ITEM = 5;
-const MAX_COMPARISONS = 10; // Maximum number of comparisons to make
+// Remove artificial cap on total comparisons so the algorithm can continue until an accurate rank is found.
+const MAX_COMPARISONS = Number.MAX_SAFE_INTEGER;
 
 // Haptic Feedback Utility
 const triggerHapticFeedback = (durationMs: number = 50) => {
@@ -123,9 +124,14 @@ const AppContent: React.FC = () => {
     if (!session.isActive) return;
 
     // Check if we've reached the end of comparisons
-    if (session.lowIndex > session.highIndex || session.comparisonCount >= MAX_COMPARISONS) {
-      // Update the seen list with the new item
-      setSeenList(prev => [...prev, session.newItem]);
+    if (session.lowIndex > session.highIndex) {
+      // Build the final ordered bucket by inserting the newly ranked item at the resolved index
+      const finalOrderedBucket = [...session.comparisonList];
+      finalOrderedBucket.splice(session.lowIndex, 0, session.newItem);
+
+      // Persist the new global ordering for this reaction/media-type bucket
+      const newGlobalSeenList = userListService.updateOrderAfterIteration(session.newItem, finalOrderedBucket);
+      setSeenList(newGlobalSeenList);
       
       // Convert RatedItem to RankedItem
       const rankForCalc = session.lowIndex;
@@ -460,7 +466,7 @@ const NavItem: React.FC<{ to: string; icon: React.ReactNode; label: string; onCl
     to={to} 
     end={to === "/"} 
     onClick={onClick} // Added onClick passthrough
-    className={({ isActive }) => 
+    className={({ isActive }: { isActive: boolean }) => 
       `flex flex-col items-center justify-center px-3 py-2.5 text-xs font-medium transition-all duration-200 w-1/4 transform hover:opacity-80 \
       ${isActive ? 'text-[#F6F6F6]' : 'text-gray-500 hover:text-gray-300'}`
     }
