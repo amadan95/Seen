@@ -74,6 +74,16 @@ const AppContent: React.FC = () => {
     setCustomLists(userListService.getCustomLists());
   }, []); // This effect now runs on initial mount, good for fetching initial data
 
+  // When a Supabase user logs in/out, sync remote lists
+  useEffect(() => {
+    if (user) {
+      userListService.syncFromRemote().then(() => {
+        setWatchlist(userListService.getWatchlist());
+        setSeenList(userListService.getSeenList());
+      });
+    }
+  }, [user]);
+
   const handleAddToWatchlist = useCallback((item: MediaItem) => {
     triggerHapticFeedback(); // Add haptic feedback here
     const updated = userListService.addToWatchlist(item);

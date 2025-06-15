@@ -1,6 +1,8 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { TMDB_API_KEY, TMDB_BASE_URL, GEMINI_API_KEY, GEMINI_TEXT_MODEL, DEFAULT_USER_ID, MAX_COMPARISON_CANDIDATES, TMDB_IMAGE_BASE_URL_W500, TMDB_IMAGE_BASE_URL_ORIGINAL } from './constants';
 import { MediaItem, TMDBMovie, TMDBShow, Reaction, RatedItem, WatchlistItem, RankedItem, TMDBGenre, GeminiComparisonPromptRequest, CreditsResponse, TVSeasonDetailsResponse, WatchProviderResponse, TMDBGenreListResponse, CustomList, CustomListMediaItem, PersonDetails, PersonCombinedCreditsResponse, PersonCreditItem } from './types';
+import { remoteListService } from './remoteListService';
+import { supabase } from './supabaseClient';
 
 // --- TMDB Service ---
 interface TMDBListResponse<T> {
@@ -274,6 +276,8 @@ const getISOWeekAndYear = (date: Date): { week: number; year: number } => {
     return { week: weekNumber, year: d.getUTCFullYear() };
 };
 
+const getCurrentSupabaseUser = () => supabase.auth.getUser().then(res => res.data.user).catch(() => null);
+
 export const userListService = {
   getWatchlist: (): WatchlistItem[] => getFromLocalStorage<WatchlistItem[]>('watchlist', []),
   addToWatchlist: (item: MediaItem): WatchlistItem[] => {
@@ -282,6 +286,7 @@ export const userListService = {
       const newItem: WatchlistItem = { ...item, addedAt: new Date().toISOString() };
       const updatedList = [newItem, ...list];
       saveToLocalStorage('watchlist', updatedList);
+      getCurrentSupabaseUser().then(u => { if (u) remoteListService.addToWatchlist(u, newItem).catch(console.error); });
       return updatedList;
     }
     return list;
@@ -290,6 +295,7 @@ export const userListService = {
     let list = userListService.getWatchlist();
     list = list.filter(i => !(i.id === itemId && i.media_type === itemType));
     saveToLocalStorage('watchlist', list);
+    getCurrentSupabaseUser().then(u => { if (u) remoteListService.removeFromWatchlist(u, itemId, itemType).catch(console.error); });
     return list;
   },
   isWatchlisted: (itemId: number, itemType: 'movie' | 'tv'): boolean => {
@@ -302,6 +308,7 @@ export const userListService = {
     let list = userListService.getSeenList();
     list = list.filter(i => !(i.id === itemId && i.media_type === itemType));
     saveToLocalStorage('seenlist', list);
+    getCurrentSupabaseUser().then(u => { if (u) remoteListService.removeFromSeenList(u, itemId, itemType).catch(console.error); });
     return list;
   },
 
@@ -324,6 +331,13 @@ export const userListService = {
     const currentSeenList = userListService.getSeenList();
     const updatedSeenList = [ratedItem, ...currentSeenList.filter(i => !(i.id === ratedItem.id && i.media_type === ratedItem.media_type))];
     saveToLocalStorage('seenlist', updatedSeenList);
+
+    getCurrentSupabaseUser().then(async (u) => {
+      if (u) {
+        // rank will be computed later; temporarily use 0
+        await remoteListService.upsertRatedItem(u, ratedItem, 0, 1).catch(console.error);
+      }
+    });
 
     return ratedItem;
   },
@@ -350,6 +364,14 @@ export const userListService = {
     const newGlobalSeenList = [...finalOrderedBucket, ...otherItemsFromGlobalList];
     
     saveToLocalStorage('seenlist', newGlobalSeenList);
+    getCurrentSupabaseUser().then(async (u) => {
+      if (u) {
+        for (let i = 0; i < finalOrderedBucket.length; i++) {
+          const it = finalOrderedBucket[i];
+          await remoteListService.upsertRatedItem(u, it, i, finalOrderedBucket.length).catch(console.error);
+        }
+      }
+    });
     return newGlobalSeenList;
   },
 
@@ -516,5 +538,21 @@ export const userListService = {
     list.updatedAt = new Date().toISOString();
     saveToLocalStorage('custom_lists', lists);
     return list;
+  },
+
+  syncFromRemote: async (): Promise<void> => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData?.session?.user;
+    if (!user) return;
+    try {
+      const [remoteWatch, remoteSeen] = await Promise.all([
+        remoteListService.getWatchlist(user),
+        remoteListService.getSeenList(user),
+      ]);
+      saveToLocalStorage('watchlist', remoteWatch);
+      saveToLocalStorage('seenlist', remoteSeen);
+    } catch (err) {
+      console.error('[syncFromRemote] Error syncing lists', err);
+    }
   },
 };
