@@ -60,7 +60,7 @@ export const remoteListService = {
       tmdb_id: item.id,
       media_type: item.media_type,
       extra_json: item,
-    });
+    }, { onConflict: 'user_id,tmdb_id,media_type' });
     if (error) throw error;
   },
 
@@ -97,7 +97,7 @@ export const remoteListService = {
       personal_score: personalScore,
       user_notes: item.userNotes ?? null,
       extra_json: item,
-    });
+    }, { onConflict: 'user_id,tmdb_id,media_type' });
     if (error) throw error;
   },
 

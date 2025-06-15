@@ -545,10 +545,19 @@ export const userListService = {
     const user = sessionData?.session?.user;
     if (!user) return;
     try {
-      const [remoteWatch, remoteSeen] = await Promise.all([
+      const [remoteWatchRaw, remoteSeenRaw] = await Promise.all([
         remoteListService.getWatchlist(user),
         remoteListService.getSeenList(user),
       ]);
+      const dedupe = <T extends { id: number; media_type: string }>(arr: T[]): T[] => {
+        const map = new Map<string, T>();
+        for (const item of arr) {
+          map.set(`${item.id}_${item.media_type}`, item);
+        }
+        return Array.from(map.values());
+      };
+      const remoteSeen = dedupe(remoteSeenRaw);
+      const remoteWatch = dedupe(remoteWatchRaw);
       saveToLocalStorage('watchlist', remoteWatch);
       saveToLocalStorage('seenlist', remoteSeen);
     } catch (err) {
