@@ -35,13 +35,19 @@ export const getRuntimeCategory = (item: MediaItem): string => {
 
 
 export const tmdbService = {
+  /**
+   * Search TMDB for movies and TV shows matching a query.
+   * Results are filtered so that only items with media_type of 'movie' or 'tv'
+   * are returned.
+   */
   searchMedia: async (query: string, page: number = 1): Promise<TMDBListResponse<MediaItem>> => {
-    // Explicitly type the response as MediaItem to handle mixed results
     const response = await fetchTMDB<TMDBListResponse<any>>('/search/multi', { query, page: page.toString(), include_adult: 'false' });
-    response.results = response.results.map(item => ({
+    response.results = response.results
+      .filter(item => item.media_type === 'movie' || item.media_type === 'tv')
+      .map(item => ({
         ...item,
-        media_type: item.media_type // Ensure media_type is present
-    })) as MediaItem[];
+        media_type: item.media_type as 'movie' | 'tv'
+      })) as MediaItem[];
     return response as TMDBListResponse<MediaItem>;
   },
   getMediaDetails: async (id: number, type: 'movie' | 'tv'): Promise<MediaItem> => {
