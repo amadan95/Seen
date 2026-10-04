@@ -1,0 +1,16 @@
+{
+  "name": "@seen/domain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@seen/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@seen/fixtures": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

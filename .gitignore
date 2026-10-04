@@ -1,0 +1,15 @@
+node_modules/
+.pnpm-store/
+.expo/
+dist/
+coverage/
+.DS_Store
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+*.log
+apps/ios/ios/
+apps/ios/android/
+supabase/.temp/
+supabase/.branches/

@@ -1,0 +1,11 @@
+node_modules
+.pnpm-store
+dist
+.expo
+apps/ios/ios
+apps/ios/android
+pnpm-lock.yaml
+docs/spec.md
+docs/backlog.md
+docs/reference
+supabase/functions/preview-smoke/domain.bundle.js

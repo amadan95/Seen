@@ -1,0 +1,10 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = public, extensions;
+select plan(4);
+select has_schema('private');
+select is(public.foundation_version(), 'seen-foundation-v1');
+select ok(not has_function_privilege('anon', 'public.foundation_version()', 'execute'), 'anonymous role cannot execute foundation RPC');
+select ok(not has_schema_privilege('authenticated', 'private', 'usage'), 'internal schema is not accessible to client roles');
+select * from finish();
+rollback;

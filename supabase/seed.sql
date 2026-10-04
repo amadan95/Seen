@@ -1,0 +1,2 @@
+-- No user data, supplier payloads, or credentials in the Phase 0 database.
+-- Client preview fixtures live in packages/fixtures, isolated from production.
