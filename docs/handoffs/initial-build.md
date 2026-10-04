@@ -20,11 +20,12 @@ Supabase has a local config, internal schema/grants foundation, version RPC, fou
 - Ranking benchmark: 2,000 titles / 10,000 synthetic pairs, 32 iterations, converged gradient norm approximately 5.67e-6; observed 25–38 ms on this Mac. This does not validate Supabase-hosted CPU budgets.
 - Phone-width browser preview: inspected Home, Rank, detail and comparison layouts; exercised search → log → persisted success → Done and automatic watchlist removal; comparison submission and undo. Logging remained available after reload and the saved title became eligible for comparison.
 - Impeccable mechanical UI detector: no findings. Native accessibility/device verification remains open.
+- [GitHub Actions for initial app commit `4cd648d`](https://github.com/amadan95/Seen/actions/runs/37244710281): both client/domain and database jobs passed, including Supabase startup, migration reset and four pgTAP assertions on the Linux runner.
 
 ## Explicitly unverified / not implemented
 
 - This host has Apple command-line tools, but no full Xcode/iOS simulator. No native compile, CocoaPods install, signing, physical iPhone run, Apple auth, VoiceOver, Dynamic Type or native SQLite crash/restart QA is claimed.
-- Docker and Podman are absent. Local migration reset and pgTAP execution are not claimed; the workflow is prepared to run them on GitHub's Linux runner.
+- Docker and Podman are absent on this Mac. Local migration reset and pgTAP execution remain unavailable here; both passed on GitHub's Linux runner as linked above.
 - Hosted Supabase staging/production, EAS ownership/signing, vendor access, authentication and source approvals need owner configuration.
 - The preview store is not the production user-partitioned cache/outbox. There is no remote sync, conflict API, actor-bound receipt or account lifecycle. Do not import these fixture IDs directly into production data.
 - The preview picker uses nearest display-score candidates and current/session exclusions. Production adaptive brackets, persistent cooldowns, bridge scheduling and server-authoritative sessions/snapshots remain tasks 10–12. Domain ranking tests do not constitute full task 10 acceptance.
@@ -33,6 +34,6 @@ Supabase has a local config, internal schema/grants foundation, version RPC, fou
 
 ## Next increment
 
-Finish task 01's outstanding native/device, database and staging checks, then implement task 02 (identity/settings/security schema with grants/RLS and actor fixtures), followed by native auth task 03. Reuse the existing UI and pure domain after connecting accepted production contracts. Tasks 23–28 remain deferred.
+Finish task 01's outstanding native/device and staging checks, then implement task 02 (identity/settings/security schema with grants/RLS and actor fixtures), followed by native auth task 03. Reuse the existing UI and pure domain after connecting accepted production contracts. Tasks 23–28 remain deferred.
 
 No App Store/TestFlight submission, public hosting deployment, paid provisioning or vendor-permission assertion was performed.
