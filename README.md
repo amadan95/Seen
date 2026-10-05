@@ -37,11 +37,11 @@ For the actual iOS development build, install Xcode 26.4+, select its command-li
 
 ```sh
 pnpm ios
-# After installing a development build on a device:
-pnpm dev
+# After installing a development build in the simulator:
+pnpm dev:simulator
 ```
 
-The app targets iOS 17+. SDK 57 uses React Native 0.86.3 and React 19.2.3. Expo Go from the App Store is not the validation path; use a native development build. [Runtime decisions](docs/decisions/001-foundation.md) document the toolchain and deployment gates.
+The app targets iOS 17+. SDK 57 uses React Native 0.86.3 and React 19.2.3. The development build has been compiled and exercised on Xcode 27 / iOS 27 in Device Hub, with scene lifecycle support enabled. See the [continuation handoff](docs/handoffs/local-catalog-native.md#resume-the-simulator-preview) for reconnecting the installed simulator app. Expo Go from the App Store is not the validation path; use a native development build. [Runtime decisions](docs/decisions/001-foundation.md) document the toolchain and deployment gates.
 
 For EAS, link an owner-controlled Expo project first, then run an iOS `development` or `simulator` build from `apps/ios`. Development, staging and production use different app IDs/schemes. The production profile is scaffolding; it still contains the preview and must not be released.
 

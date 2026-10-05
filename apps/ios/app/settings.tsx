@@ -5,6 +5,7 @@ import { emptyLibrary } from '@seen/domain';
 import { useLibrary } from '../src/local/LibraryProvider';
 import { Body, Button, InlineError, Screen, Section, s } from '../src/components/ui';
 import { colors } from '../src/design/tokens';
+import { TmdbLogo } from '../src/components/TmdbLogo';
 
 export default function Settings() {
   const { library, mutate, busy, mediaById } = useLibrary(),
@@ -114,6 +115,7 @@ export default function Settings() {
           catalog, Supabase authentication, server ranking, offline sync, moderation, and account
           deletion are release gates.
         </Body>
+        <TmdbLogo />
         <Body muted style={s.caption}>
           This product uses the TMDB API but is not endorsed or certified by TMDB.
         </Body>

@@ -139,7 +139,9 @@ export default function Compare() {
           message={
             steps >= 3
               ? 'Your answers are saved on this device. Come back whenever you want to refine your list.'
-              : 'Log two titles of the same format. TV titles also need a sentiment and seen-enough confirmation.'
+              : steps > 0
+                ? 'Your answer is saved. Log another title to create more pairs, or return to your list.'
+                : 'Log two titles of the same format. TV titles also need a sentiment and seen-enough confirmation.'
           }
           action={
             <Button label="Back to your list" onPress={() => router.replace('/(tabs)/rank')} />

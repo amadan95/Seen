@@ -24,13 +24,29 @@ Xcode 27.0 and the iOS 27 runtime are installed. The GUI is Xcode's **Device Hub
 
 The first native build compiled, then hit UIKit's required scene-lifecycle startup trap on iOS 27. The fix is Expo's supported `expo-build-properties` option `ios.enableSceneSupport: true`, with the existing stable SDK 57 packages. Native directories are regenerated from config, not committed. See [Expo's migration guidance](https://github.com/expo/fyi/blob/main/ios-scene-lifecycle.md).
 
-## Validation so far
+## Validation
 
 - ESLint, strict workspace TypeScript and 29 unit tests passed, including catalog collision/nullability/adult/rate-limit/cache/runtime cases and old-library compatibility.
 - A bounded live TMDB search returned real movie results through the local bridge; no key was displayed or embedded in the client.
 - Both local key files and the identity map are ignored by Git. Native build artifacts remain ignored.
-- The scene-support rebuild and native UI exercise are in progress. The pgTAP identity/grant/RLS suite will run against a real local Supabase stack in GitHub CI; Docker/Podman are absent on this Mac.
+- The scene-support native build succeeded and launches on the iPhone 18 Pro simulator with iOS 27. Verified a fresh local library, live Stalker/Arrival search, detail hydration and real posters, watchlist save, sentiment logging, optional comparison and provisional ranking. A full app restart retained live title metadata, logs, the comparison and both provisional scores in SQLite. Scores were absent before comparisons and hidden during choices.
+- [GitHub CI run 37248144202](https://github.com/amadan95/Seen/actions/runs/37248144202) passed both jobs: client checks, bundles and Edge smoke, plus a real Supabase database reset and all 49 pgTAP checks (45 identity/grant/RLS checks and four foundation checks). Docker/Podman are absent on this Mac; database runtime verification happened in CI.
+- About Seen includes TMDB's approved, unmodified blue short logo and attribution notice. Search and detail retain source information.
+
+## Resume the simulator preview
+
+The existing development app is installed as `com.amadan95.seen.development`. Keep the local bridge and Metro running in separate terminals:
+
+```sh
+pnpm catalog:dev
+# Another terminal:
+pnpm dev:simulator
+# If the installed app needs to reconnect:
+xcrun simctl openurl booted 'seen-development://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8082'
+```
+
+`dev:simulator` pins IPv4-first DNS because Node 24's IPv6-only localhost listener otherwise conflicts with Expo's IPv4 bundle URL on this installation. Open the app in Xcode's Device Hub. Native code/config changes require a rebuild; ordinary TypeScript changes reload through Metro.
 
 ## Next dependencies
 
-Finish native scene/startup verification and identity database checks, then implement task 03 using a local Supabase runtime or owner-configured hosted project. No cloud project, authentication account, Apple signing, paid provisioning, deploy, or App Store submission has been created.
+The owner chose continued local development without a hosted Supabase project. Task 03 still needs a local Supabase runtime or an owner-configured hosted project for actual authentication and session checks. Physical-device testing, VoiceOver/large-text QA, production catalog services and staging remain pending. No cloud project, authentication account, Apple signing, paid provisioning, deploy, or App Store submission has been created.
