@@ -7,8 +7,13 @@ end $$;
 -- Supabase's migration role is not a superuser. Transfer ownership through an explicit
 -- SET membership; retain administration but disable SET/INHERIT after the transfer.
 grant seen_identity_owner to postgres with set true, inherit false;
-grant usage on schema public, private, auth to seen_identity_owner;
-grant execute on function auth.uid() to seen_identity_owner;
+grant usage on schema public, private to seen_identity_owner;
+-- The managed auth schema cannot be re-granted by the migration role. This tiny
+-- helper reads only verified request claims, with no tables or caller actor parameter.
+create function private.verified_actor() returns uuid
+language sql stable security definer set search_path = '' as $$ select auth.uid() $$;
+revoke all on function private.verified_actor() from public, anon, authenticated;
+grant execute on function private.verified_actor() to seen_identity_owner;
 
 create table private.supported_regions (
   code text primary key check (code ~ '^[A-Z]{2}$'),
@@ -67,9 +72,9 @@ alter table public.user_settings enable row level security;
 alter table private.user_preference_state enable row level security;
 create policy profiles_owner_read on public.profiles for select to authenticated using (user_id = (select auth.uid()));
 create policy settings_owner_read on public.user_settings for select to authenticated using (user_id = (select auth.uid()));
-create policy profiles_rpc_owner on public.profiles to seen_identity_owner using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
-create policy settings_rpc_owner on public.user_settings to seen_identity_owner using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
-create policy preferences_rpc_owner on private.user_preference_state to seen_identity_owner using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+create policy profiles_rpc_owner on public.profiles to seen_identity_owner using (user_id = (select private.verified_actor())) with check (user_id = (select private.verified_actor()));
+create policy settings_rpc_owner on public.user_settings to seen_identity_owner using (user_id = (select private.verified_actor())) with check (user_id = (select private.verified_actor()));
+create policy preferences_rpc_owner on private.user_preference_state to seen_identity_owner using (user_id = (select private.verified_actor())) with check (user_id = (select private.verified_actor()));
 
 create function private.touch_identity_row() returns trigger
 language plpgsql security invoker set search_path = '' as $$
@@ -84,7 +89,7 @@ create trigger preferences_touch before update on private.user_preference_state 
 -- Only the narrow definer role can call this helper; clients cannot access private.
 create function private.require_active_actor() returns uuid
 language plpgsql security invoker set search_path = '' as $$
-declare actor uuid := auth.uid();
+declare actor uuid := private.verified_actor();
 begin
   if actor is null then raise exception 'UNAUTHENTICATED' using errcode = '42501'; end if;
   if not exists (select 1 from public.profiles where user_id = actor and account_state = 'active') then
@@ -97,7 +102,7 @@ grant execute on function private.require_active_actor(), private.touch_identity
 
 create function public.bootstrap_profile(p_username text, p_display_name text)
 returns public.profiles language plpgsql security definer set search_path = '' as $$
-declare actor uuid := auth.uid(); existing public.profiles; result public.profiles;
+declare actor uuid := private.verified_actor(); existing public.profiles; result public.profiles;
 begin
   if actor is null then raise exception 'UNAUTHENTICATED' using errcode = '42501'; end if;
   -- Serializes first-login retries for this actor. No client-supplied actor ID exists.
@@ -172,8 +177,11 @@ alter function public.bootstrap_profile(text, text) owner to seen_identity_owner
 alter function public.update_own_profile(bigint, text, text, text, text) owner to seen_identity_owner;
 alter function public.update_own_settings(bigint, text, text, text, text, boolean, boolean, boolean, text) owner to seen_identity_owner;
 revoke create on schema public from seen_identity_owner;
-grant seen_identity_owner to postgres with set false, inherit false;
+-- Apply ACLs as the actual owner, before disabling the migration role's SET ability.
+set local role seen_identity_owner;
 revoke all on function public.bootstrap_profile(text, text), public.update_own_profile(bigint, text, text, text, text),
   public.update_own_settings(bigint, text, text, text, text, boolean, boolean, boolean, text) from public, anon;
 grant execute on function public.bootstrap_profile(text, text), public.update_own_profile(bigint, text, text, text, text),
   public.update_own_settings(bigint, text, text, text, text, boolean, boolean, boolean, text) to authenticated;
+reset role;
+grant seen_identity_owner to postgres with set false, inherit false;
