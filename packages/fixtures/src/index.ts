@@ -255,6 +255,7 @@ export function sampleLibrary(): Library {
         outcome: left === a ? 'a_wins' : 'b_wins',
       };
     }),
+    notes: [],
     catalogEntries: [],
     watchlist: ['moon', 'grand-budapest', 'bear'].map((mediaId, i) => ({
       mediaId,

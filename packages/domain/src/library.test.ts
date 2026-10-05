@@ -14,6 +14,7 @@ import {
   removeHistory,
   saveLog,
   setWatchlist,
+  setTitleNote,
 } from './library';
 
 const now = '2026-10-04T12:00:00.000Z';
@@ -153,5 +154,43 @@ describe('local preview library semantics', () => {
     expect(confirmSeenEnough(confirmed, catalog, 'bear')).toBe(confirmed);
     expect(() => confirmSeenEnough(emptyLibrary(), catalog, 'bear')).toThrow();
     expect(() => confirmSeenEnough(state, catalog, 'moon')).toThrow();
+  });
+});
+
+describe('private title notes', () => {
+  it('adds, edits and clears a note without manufacturing watches or changing ranking evidence', () => {
+    const state = sampleLibrary();
+    const added = setTitleNote(state, catalog, 'moon', ' First impression ', now);
+    const edited = setTitleNote(added, catalog, 'moon', 'Remember the soundtrack', now);
+    expect(edited.notes.find((note) => note.mediaId === 'moon')?.text).toBe(
+      'Remember the soundtrack',
+    );
+    for (const result of [added, edited]) {
+      expect(result.logs).toEqual(state.logs);
+      expect(result.opinions).toEqual(state.opinions);
+      expect(result.comparisons).toEqual(state.comparisons);
+      expect(result.watchlist).toEqual(state.watchlist);
+    }
+    expect(setTitleNote(edited, catalog, 'moon', 'Remember the soundtrack', now)).toBe(edited);
+    const cleared = setTitleNote(edited, catalog, 'moon', '', now);
+    expect(cleared.notes.find((note) => note.mediaId === 'moon')?.text).toBe('');
+    expect(librarySchema.parse(JSON.parse(JSON.stringify(edited)))).toEqual(edited);
+  });
+  it('reads older libraries and keeps the log and title editors consistent', () => {
+    const { notes: omitted, ...legacy } = sampleLibrary();
+    expect(omitted).toEqual([]);
+    expect(librarySchema.parse(legacy).notes).toEqual([]);
+    const noted = setTitleNote(emptyLibrary(), catalog, 'moon', 'Before watching', now);
+    expect(noted.logs).toEqual([]);
+    expect(noted.opinions).toEqual([]);
+    const logged = saveLog(noted, catalog, { ...input, note: 'After watching' }, 'watch', now);
+    expect(logged.notes[0]?.text).toBe('After watching');
+    const cleared = setTitleNote(logged, catalog, 'moon', '', now);
+    expect(cleared.notes[0]?.text).toBe('');
+    expect(removeHistory(cleared, 'moon').notes).toEqual([]);
+  });
+  it('rejects overlong notes and unknown titles', () => {
+    expect(() => setTitleNote(emptyLibrary(), catalog, 'moon', 'x'.repeat(281), now)).toThrow();
+    expect(() => setTitleNote(emptyLibrary(), catalog, 'missing', 'Hello', now)).toThrow();
   });
 });

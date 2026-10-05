@@ -1,0 +1,9 @@
+# Title notes and format-specific comparisons — 2026-10-05
+
+The comparison modal derives its format from the selected title, with a format-filtered candidate catalog. Movie targets only pair with movies; TV targets only pair with TV. Existing domain validation still rejects mixed-format answers, and TV seen-enough confirmation remains required. Similar-category prioritization and score-based placement are preserved.
+
+Every title detail now has Add/Edit private note, a 280-character editor, Save and Cancel, and a saved preview. Notes can be written before watching without creating watch events, changing sentiments, or invalidating ranking evidence. Clearing keeps an empty override so legacy log notes do not reappear. The logging form starts with the current title note and saving a log updates the title note. Historical watch-event notes remain part of those events.
+
+The local library contract defaults notes to an empty array for older saved data. Notes use the existing durable SQLite/native or browser local store, are included in local exports, and retain cached metadata for live titles referenced only by notes. Removing a title's history removes its title note. Hosted sync is still pending the Supabase setup; these notes are private to this installation.
+
+Validation: pnpm check passed (lint, strict type checks, 41 tests). Regenerated the Deno Edge domain bundle. Tests cover all eligible movie and TV pair pools and targets, invalid cross-format targets, note creation before a watch, edit/clear/retry, validation, JSON round trip and old-library compatibility. Browser UI: saved a note on Arrival, reloaded and verified persistence and unchanged displayed score, then cleared test text. Native simulator screenshot confirmed the new note action fits the artwork-first title layout.

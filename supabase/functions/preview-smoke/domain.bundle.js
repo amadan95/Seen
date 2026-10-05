@@ -204,6 +204,7 @@ var emptyLibrary = () => ({
   revision: 0,
   opinions: [],
   logs: [],
+  notes: [],
   comparisons: [],
   watchlist: [],
   catalogEntries: []
@@ -246,8 +247,29 @@ function saveLog(state, catalog, input, eventId, now) {
     ...state,
     revision: state.revision + 1,
     opinions: [...state.opinions.filter((o) => o.mediaId !== media.id), opinion],
+    notes: [
+      ...(state.notes ?? []).filter((note) => note.mediaId !== media.id),
+      { mediaId: media.id, text: input.note.trim(), updatedAt: now }
+    ],
     logs: !createsWatchEvent ? state.logs : latest && !input.rewatch ? state.logs.map((l) => l.id === latest.id ? log : l) : [...state.logs, log],
     watchlist: state.watchlist.filter((w) => w.mediaId !== media.id)
+  };
+}
+function setTitleNote(state, catalog, mediaId, text, now) {
+  if (!catalog.some((media) => media.id === mediaId)) throw new Error("Title unavailable");
+  if (text.length > 280) throw new Error("Private notes are limited to 280 characters");
+  const cleaned = text.trim();
+  const notes = state.notes ?? [];
+  const previous = notes.find((note) => note.mediaId === mediaId);
+  if (previous?.text === cleaned) return state;
+  return {
+    ...state,
+    revision: state.revision + 1,
+    // Keep an empty override when clearing a note so legacy watch notes don't reappear.
+    notes: [
+      ...notes.filter((note) => note.mediaId !== mediaId),
+      { mediaId, text: cleaned, updatedAt: now }
+    ]
   };
 }
 function confirmSeenEnough(state, catalog, mediaId) {
@@ -305,6 +327,7 @@ function removeHistory(state, mediaId) {
     revision: state.revision + 1,
     opinions: state.opinions.filter((o) => o.mediaId !== mediaId),
     logs: state.logs.filter((l) => l.mediaId !== mediaId),
+    notes: (state.notes ?? []).filter((note) => note.mediaId !== mediaId),
     comparisons: state.comparisons.filter((c) => c.a !== mediaId && c.b !== mediaId)
   };
 }
@@ -343,6 +366,7 @@ export {
   removeHistory,
   saveLog,
   setPriority,
+  setTitleNote,
   setWatchlist,
   sigmoid
 };

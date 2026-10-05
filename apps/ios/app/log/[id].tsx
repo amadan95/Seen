@@ -33,7 +33,9 @@ export default function LogScreen() {
     [historical, setHistorical] = useState(latest?.historical ?? false);
   const [rewatch, setRewatch] = useState(false),
     [date, setDate] = useState(latest?.watchedOn ?? ''),
-    [note, setNote] = useState(latest?.note ?? '');
+    [note, setNote] = useState(
+      (library.notes ?? []).find((item) => item.mediaId === id)?.text ?? latest?.note ?? '',
+    );
   const [saved, setSaved] = useState(false),
     [error, setError] = useState<string | null>(null),
     [undo, setUndo] = useState<{ before: Library; revision: number } | null>(null);

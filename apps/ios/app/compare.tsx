@@ -9,7 +9,6 @@ import { Poster } from '../src/components/Poster';
 
 export default function Compare() {
   const params = useLocalSearchParams<{ kind?: string; target?: string; mode?: string }>(),
-    kind = params.kind === 'tv' ? 'tv' : 'movie',
     placement = params.mode === 'placement' && Boolean(params.target);
   const { library, mutate, busy, snapshot, catalog } = useLibrary(),
     { width, fontScale } = useWindowDimensions();
@@ -24,12 +23,14 @@ export default function Compare() {
   } | null>(null);
   const inFlight = useRef(false);
   const targetMedia = catalog.find((media) => media.id === params.target);
+  const kind = targetMedia?.kind ?? (params.kind === 'tv' ? 'tv' : 'movie');
+  const comparisonCatalog = catalog.filter((media) => media.kind === kind);
   const targetOpinion = library.opinions.find((opinion) => opinion.mediaId === params.target);
   const needsConfirmation =
     placement && kind === 'tv' && targetOpinion?.sentiment && !targetOpinion.seenEnough;
   const pair =
     !needsConfirmation && (placement || steps < 3)
-      ? pickComparison(catalog, library, kind, excluded, params.target)
+      ? pickComparison(comparisonCatalog, library, kind, excluded, params.target)
       : null;
   function openRankings(placed = false, revision?: number) {
     router.dismissAll();
@@ -138,7 +139,7 @@ export default function Compare() {
         <Body muted>
           {placement
             ? `Placing ${targetMedia?.title ?? 'your title'}`
-            : `${Math.min(steps + 1, 3)} of up to 3`}
+            : `${kind === 'tv' ? 'TV' : 'Movies'} · ${Math.min(steps + 1, 3)} of up to 3`}
         </Body>
         <Button
           label={placement ? 'Finish later' : 'Done'}

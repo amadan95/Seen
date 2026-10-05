@@ -257,3 +257,30 @@ describe('regularized ranking and Rank Score', () => {
     expect(pickComparison(catalog, state, 'movie', new Set(), 'missing')).toBeNull();
   });
 });
+
+it('keeps every targeted and general comparison inside its movie or TV pool', () => {
+  const state = sampleLibrary();
+  state.comparisons = [];
+  for (const kind of ['movie', 'tv'] as const) {
+    const targets = buildSnapshot(catalog, state, kind).items.map((item) => item.mediaId);
+    expect(targets.length).toBeGreaterThan(1);
+    for (const target of [undefined, ...targets]) {
+      const excluded = new Set<string>();
+      let pair = pickComparison(catalog, state, kind, excluded, target);
+      expect(pair).not.toBeNull();
+      while (pair) {
+        expect(pair.every((media) => media.kind === kind)).toBe(true);
+        if (target) expect(pair.some((media) => media.id === target)).toBe(true);
+        excluded.add(
+          pair
+            .map((media) => media.id)
+            .sort()
+            .join('|'),
+        );
+        pair = pickComparison(catalog, state, kind, excluded, target);
+      }
+    }
+    const other = catalog.find((media) => media.kind !== kind)!;
+    expect(pickComparison(catalog, state, kind, new Set(), other.id)).toBeNull();
+  }
+});

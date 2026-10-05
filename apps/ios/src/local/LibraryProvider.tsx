@@ -71,6 +71,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         const referenced = new Set([
           ...changed.opinions.map((item) => item.mediaId),
           ...changed.logs.map((item) => item.mediaId),
+          ...(changed.notes ?? []).map((item) => item.mediaId),
           ...changed.watchlist.map((item) => item.mediaId),
           ...changed.comparisons.flatMap((item) => [item.a, item.b]),
         ]);

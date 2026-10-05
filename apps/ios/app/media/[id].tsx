@@ -15,6 +15,7 @@ import {
   Section,
   s,
 } from '../../src/components/ui';
+import { TitleNote } from '../../src/components/TitleNote';
 import { Availability } from '../../src/components/Availability';
 import { Poster } from '../../src/components/Poster';
 import { colors } from '../../src/design/tokens';
@@ -153,6 +154,7 @@ export default function MediaDetail() {
         />
       </View>
       <InlineError message={error} />
+      <TitleNote key={id} mediaId={id} />
       <Section title="Where to watch">
         {live ? (
           <Availability data={media.availability} loading={loading} />

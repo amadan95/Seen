@@ -96,12 +96,20 @@ export const watchlistSchema = z.object({
 });
 export type WatchlistItem = z.infer<typeof watchlistSchema>;
 
+export const titleNoteSchema = z.object({
+  mediaId: z.string(),
+  text: z.string().max(280),
+  updatedAt: z.string().datetime(),
+});
+export type TitleNote = z.infer<typeof titleNoteSchema>;
+
 export const librarySchema = z.object({
   schemaVersion: z.literal(1),
   onboarded: z.boolean(),
   revision: z.number().int().nonnegative(),
   opinions: z.array(opinionSchema),
   logs: z.array(logSchema),
+  notes: z.array(titleNoteSchema).default([]),
   comparisons: z.array(comparisonSchema),
   watchlist: z.array(watchlistSchema),
   // Backward-compatible preview metadata, independent of eventual production catalog tables.
