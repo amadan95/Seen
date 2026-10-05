@@ -1,14 +1,14 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, View } from 'react-native';
+import { ActivityIndicator, Linking, View, useWindowDimensions } from 'react-native';
 import { setWatchlist } from '@seen/domain';
 import { useLibrary } from '../../src/local/LibraryProvider';
 import {
   Body,
-  Badge,
   Button,
   EmptyState,
   Heading,
+  Disclosure,
   InlineError,
   PreviewNotice,
   Screen,
@@ -21,6 +21,7 @@ import { colors } from '../../src/design/tokens';
 import { catalogUrl, loadCatalogDetail } from '../../src/features/catalog/client';
 
 export default function MediaDetail() {
+  const { width, fontScale } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id: string }>(),
     { library, mutate, snapshot, busy, mediaById, cacheMedia } = useLibrary(),
     media = mediaById.get(id);
@@ -55,7 +56,7 @@ export default function MediaDetail() {
   }, [id, live, retry, cacheMedia]);
   if (!media)
     return (
-      <Screen>
+      <Screen inStack>
         <EmptyState
           title="Title unavailable"
           message="This title isn’t available in the local catalog."
@@ -77,36 +78,21 @@ export default function MediaDetail() {
     }
   }
   return (
-    <Screen>
-      <Heading large>{media.title}</Heading>
-      <Body muted>
-        {[...(media.directors ?? media.creators ?? []), media.year ?? 'Year unknown'].join(' · ')}
-      </Body>
-      <View style={[s.row, { alignItems: 'flex-start', gap: 18 }]}>
-        <Poster media={media} width={116} />
-        <View style={{ flex: 1, gap: 9 }}>
-          <Body muted numberOfLines={4}>
-            {media.tagline || media.synopsis || 'Overview unavailable.'}
-          </Body>
-          <Body muted style={{ fontSize: 15 }}>
-            {media.year ?? 'Year unknown'} · {media.kind === 'movie' ? 'Movie' : 'TV show'}
-          </Body>
-          <Body muted style={s.caption}>
-            {media.kind === 'movie'
-              ? media.runtimeMinutes
-                ? `${media.runtimeMinutes} min`
-                : 'Runtime unknown'
-              : media.episodeMinutes
-                ? media.episodeDurationSource === 'latest'
-                  ? `Latest episode: ${media.episodeMinutes} min`
-                  : `About ${media.episodeMinutes} min per episode`
-                : 'Episode duration unknown'}
-          </Body>
-          <Body muted style={s.caption}>
-            {media.genres.join(' · ')}
-          </Body>
-        </View>
+    <Screen inStack>
+      <View style={{ alignItems: 'center', paddingBottom: 4 }}>
+        <Poster media={media} width={Math.min(width - 40, fontScale > 1.4 ? 190 : 250)} />
       </View>
+      <Heading large>{media.title}</Heading>
+      <Body muted style={s.caption}>
+        {media.year ?? 'Year unknown'} ·{' '}
+        {media.kind === 'movie'
+          ? media.runtimeMinutes
+            ? `${media.runtimeMinutes} min`
+            : 'Runtime unknown'
+          : media.episodeMinutes
+            ? `${media.episodeDurationSource === 'latest' ? 'Latest episode: ' : 'About '}${media.episodeMinutes} min${media.episodeDurationSource === 'latest' ? '' : ' / episode'}`
+            : 'TV show'}
+      </Body>
       {loading && (
         <ActivityIndicator color={colors.accent} accessibilityLabel="Refreshing title details" />
       )}
@@ -121,38 +107,44 @@ export default function MediaDetail() {
           Showing recently cached metadata.
         </Body>
       )}
-      <View style={[s.row, { paddingVertical: 12 }]}>
+      <View style={[s.row, { flexWrap: 'wrap', paddingVertical: 6 }]}>
         <Body
+          accessibilityLabel={
+            ranked?.rankScore != null
+              ? `Your score ${ranked.rankScore.toFixed(1)} out of 10`
+              : 'Not yet scored'
+          }
           style={{
             fontSize: 34,
+            lineHeight: 46,
             fontWeight: '600',
             fontVariant: ['tabular-nums'],
             color: colors.accent,
+            flexShrink: 0,
           }}
         >
           {ranked?.rankScore?.toFixed(1) ?? '—'}
         </Body>
-        <View style={{ flex: 1, gap: 5 }}>
-          <Body>Your score / 10</Body>
+        <View style={{ flex: 1, minWidth: 150, gap: 2 }}>
           <Body muted style={s.caption}>
-            {ranked?.position
-              ? `#${ranked.position} in your ${media.kind === 'movie' ? 'movies' : 'TV shows'}`
-              : opinion
-                ? 'Not yet scored · compare to place it'
-                : 'Log it, then compare to get your score'}
+            Your score / 10{ranked?.position ? ` · #${ranked.position}` : ''}
           </Body>
-          {ranked?.evidence === 'provisional' && <Badge label="Provisional" />}
+          {ranked?.evidence === 'provisional' && (
+            <Body muted style={s.caption}>
+              Provisional
+            </Body>
+          )}
         </View>
       </View>
-      <View style={s.row}>
+      <View style={{ flexDirection: fontScale > 1.4 ? 'column' : 'row', gap: 12 }}>
         <Button
-          style={{ flex: 1 }}
+          style={fontScale > 1.4 ? { width: '100%' } : { flex: 1 }}
           label={opinion ? 'Edit log' : 'Log'}
           icon="plus"
           onPress={() => router.push({ pathname: '/log/[id]', params: { id } })}
         />
         <Button
-          style={{ flex: 1 }}
+          style={fontScale > 1.4 ? { width: '100%' } : { flex: 1 }}
           label={saved ? 'Saved' : 'Watchlist'}
           disabled={busy}
           secondary
@@ -161,7 +153,6 @@ export default function MediaDetail() {
         />
       </View>
       <InlineError message={error} />
-      <PreviewNotice />
       <Section title="Where to watch">
         {live ? (
           <Availability data={media.availability} loading={loading} />
@@ -179,11 +170,19 @@ export default function MediaDetail() {
           )}
       </Section>
       <Section title="Overview">
-        {media.tagline ? <Body style={{ fontWeight: '600' }}>{media.tagline}</Body> : null}
-        <Body muted>{media.synopsis || 'No overview is available for this title.'}</Body>
+        <Body muted numberOfLines={3}>
+          {media.synopsis || 'No overview is available for this title.'}
+        </Body>
+        {Boolean(media.synopsis) && (
+          <Disclosure title="Read full overview">
+            <Body muted>{media.synopsis}</Body>
+          </Disclosure>
+        )}
       </Section>
       {media.metadataComplete && (
-        <Section title="Title details">
+        <Disclosure title="Title details">
+          {Boolean(media.genres.length) && <Body muted>{media.genres.join(' · ')}</Body>}
+          {Boolean(media.tagline) && <Body muted>{media.tagline}</Body>}
           {media.releaseDate && (
             <Body muted>
               {media.kind === 'movie' ? 'Released' : 'First aired'}: {media.releaseDate}
@@ -219,10 +218,10 @@ export default function MediaDetail() {
               }
             />
           )}
-        </Section>
+        </Disclosure>
       )}
       {Boolean(media.cast?.length) && (
-        <Section title="Cast">
+        <Disclosure title="Cast & crew">
           {media.cast!.map((person, index) => (
             <View key={`${person.name}-${index}`} style={{ gap: 2 }}>
               <Body>{person.name}</Body>
@@ -233,7 +232,7 @@ export default function MediaDetail() {
               )}
             </View>
           ))}
-        </Section>
+        </Disclosure>
       )}
       {opinion && (
         <Section title="Your watch">
@@ -253,6 +252,7 @@ export default function MediaDetail() {
           />
         </Section>
       )}
+      <PreviewNotice />
       <Body muted style={s.caption}>
         {live
           ? 'This product uses the TMDB API but is not endorsed or certified by TMDB.'

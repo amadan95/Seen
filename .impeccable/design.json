@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-05T12:26:09.024523+00:00",
+  "generatedAt": "2026-10-05T13:25:00Z",
   "title": "Design System: Seen",
   "extensions": {
     "colorMeta": {
@@ -74,6 +74,11 @@
       "previewScope": "Local preview with configured real TMDB bridge. Authentication, remote services and native release verification remain gates.",
       "sampleScope": "Self-contained web translations of native primitives, not browser product components. Focus outlines exist only for accessible sidecar samples. No invented hover or motion behavior.",
       "tonalRamps": "No runtime tonal ramp exists; palette metadata intentionally does not fabricate additional brand colors."
+    },
+    "nativeTextLayout": {
+      "scaling": "Shared font size and line height multiply by device fontScale; native automatic scaling is disabled to avoid double scaling.",
+      "safeAreas": "Native header screens use only left/right SafeAreaView edges. Tab screens also use top.",
+      "artwork": "Discover and Watchlist use 2-column poster grids, 1 column at large font scales. Detail uses an uncropped 250pt portrait, 190pt at large scales."
     }
   },
   "components": [
@@ -130,8 +135,8 @@
       "kind": "custom",
       "refersTo": "poster",
       "description": "Editorial title and fine rule; example deliberately contains no fabricated score.",
-      "html": "<div class=\"ds-row\"><div class=\"ds-poster\">Poster unavailable</div><div><h3>Title details</h3><p>Year unknown · Movie</p></div></div>",
-      "css": ".ds-row { display:flex; gap:12px; align-items:center; padding:13px 0; border-bottom:1px solid #4B3E48; color:#F4ECE2; } .ds-poster { display:flex; width:62px; height:93px; align-items:center; justify-content:center; border-radius:3px; background:#2C242A; color:#CABFBE; text-align:center; font:9px system-ui,sans-serif; } .ds-row h3 { margin:0; font:400 19px/25px Georgia,serif; } .ds-row p { margin:3px 0 0; color:#CABFBE; font:13px/19px system-ui,sans-serif; }"
+      "html": "<div class=\"ds-row\"><div class=\"ds-poster\">Poster unavailable</div><div><h3>Title details</h3><p>Year unknown \u00b7 Movie</p></div></div>",
+      "css": ".ds-row { display:flex; gap:12px; align-items:center; padding:13px 0; border-bottom:1px solid #4B3E48; color:#F4ECE2; } .ds-poster { display:flex; width:80px; height:120px; align-items:center; justify-content:center; border-radius:3px; background:#2C242A; color:#CABFBE; text-align:center; font:9px system-ui,sans-serif; } .ds-row h3 { margin:0; font:400 19px/25px Georgia,serif; } .ds-row p { margin:3px 0 0; color:#CABFBE; font:13px/19px system-ui,sans-serif; }"
     },
     {
       "name": "Five Tabs",
@@ -143,7 +148,7 @@
   ],
   "narrative": {
     "northStar": "Festival Programme",
-    "overview": "Festival Programme is a private film journal: plum pages, warm cream typography, Georgia headings and finely ruled title rows. Poster artwork supplies the imagery; restrained surfaces and native controls keep logging and ranking comfortable on an iPhone.\n\nThe user-selected B world applies throughout. Home retains the approved A composition—a cropped feature poster, Continue ranking inset and poster rail—translated into B’s palette and typography. Other screens read as an editorial programme. This documents the local preview with its configured real TMDB bridge; authentication, remote services and release verification remain separate gates.",
+    "overview": "Festival Programme is a private film journal: plum pages, warm cream typography, Georgia headings and finely ruled title rows. Poster artwork supplies the imagery; restrained surfaces and native controls keep logging and ranking comfortable on an iPhone.\n\nThe user-selected B world applies throughout. Home retains the approved A composition\u2014a cropped feature poster, Continue ranking inset and poster rail\u2014translated into B\u2019s palette and typography. Other screens read as an editorial programme. This documents the local preview with its configured real TMDB bridge; authentication, remote services and release verification remain separate gates.",
     "keyCharacteristics": [
       "Plum tonal layers and cream editorial type.",
       "Georgia headings and title rows; system body text and controls.",
@@ -168,18 +173,18 @@
       }
     ],
     "dos": [
-      "Do apply Festival Programme across every route, including Home’s approved feature-and-rail composition.",
+      "Do apply Festival Programme across every route, including Home\u2019s approved feature-and-rail composition.",
       "Do keep text scalable, content scrollable and controls reachable with native navigation.",
       "Do retain actual source labels, unknown dates/runtime and local-preview disclosure.",
       "Do save sentiment durably before opening targeted comparisons, then continue placement until a score exists or no useful pair remains.",
       "Do keep movie and TV fits separate, with explicit TV seen-enough eligibility and owner-only private notes."
     ],
     "donts": [
-      "Don’t restore the superseded charcoal/system-heading board direction.",
-      "Don’t add poster watchlist ribbons; expose saved state and actions on the detail screen.",
-      "Don’t show scores on comparison posters or infer a score from sentiment alone.",
-      "Don’t fabricate social activity, taste percentages or provider availability.",
-      "Don’t present the local preview as authenticated production service or claim native accessibility/device release checks have passed."
+      "Don\u2019t restore the superseded charcoal/system-heading board direction.",
+      "Don\u2019t add poster watchlist ribbons; expose saved state and actions on the detail screen.",
+      "Don\u2019t show scores on comparison posters or infer a score from sentiment alone.",
+      "Don\u2019t fabricate social activity, taste percentages or provider availability.",
+      "Don\u2019t present the local preview as authenticated production service or claim native accessibility/device release checks have passed."
     ]
   }
 }

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Image, Linking, View } from 'react-native';
+import { Image, Linking, View, useWindowDimensions } from 'react-native';
 import type { Availability as AvailabilityData } from '@seen/contracts';
-import { Body, Button, InlineError, s } from './ui';
+import { Body, Button, Disclosure, InlineError, Segments, s } from './ui';
+import { colors } from '../design/tokens';
 
 function ProviderLogo({ url }: { url: string | null }) {
   const [failed, setFailed] = useState(false);
@@ -10,66 +11,83 @@ function ProviderLogo({ url }: { url: string | null }) {
       source={{ uri: url }}
       onError={() => setFailed(true)}
       accessible={false}
-      style={{ width: 28, height: 28, borderRadius: 6 }}
+      style={{ width: 48, height: 48, borderRadius: 10 }}
     />
-  ) : null;
+  ) : (
+    <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: colors.elevated }} />
+  );
 }
 
 export function Availability({ data, loading }: { data?: AvailabilityData; loading: boolean }) {
+  const { width, fontScale } = useWindowDimensions();
   const [error, setError] = useState<string | null>(null);
+  const [group, setGroup] = useState<'stream' | 'rent' | 'buy'>('stream');
   if (!data || data.status === 'unavailable')
     return (
       <Body muted>
-        {loading
-          ? 'Checking US availability…'
-          : 'US availability could not be checked. Retry title details.'}
+        {loading ? 'Checking viewing options…' : 'Viewing options unavailable. Try again.'}
       </Body>
     );
   const cached = data.stale || Date.now() - Date.parse(data.checkedAt) > 900_000;
   const labels = {
     subscription: 'Subscription',
     free: 'Free',
-    ads: 'Free with ads',
+    ads: 'With ads',
     rent: 'Rent',
     buy: 'Buy',
   } as const;
+  // Keep each provider once in the chosen group; subscription/free/ad distinctions stay visible.
+  const grouped = data.offers.filter((offer) =>
+    group === 'stream'
+      ? ['subscription', 'free', 'ads'].includes(offer.type)
+      : offer.type === group,
+  );
+  const providers = [...new Map(grouped.map((offer) => [offer.providerId, offer])).values()];
   return (
-    <View style={{ gap: 14 }}>
-      <Body muted style={s.caption}>
-        United States
-      </Body>
-      {Object.entries(labels).map(([type, label]) => {
-        const offers = data.offers.filter((offer) => offer.type === type);
-        return offers.length ? (
-          <View key={type} style={{ gap: 8 }}>
-            <Body style={{ fontWeight: '600' }}>{label}</Body>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-              {offers.map((offer) => (
-                <View key={`${type}-${offer.providerId}`} style={[s.row, { gap: 7 }]}>
-                  <ProviderLogo url={offer.logoUrl} />
-                  <Body muted style={{ fontSize: 15 }}>
-                    {offer.name}
-                  </Body>
-                </View>
-              ))}
-            </View>
+    <View style={{ gap: 12 }}>
+      <Segments
+        options={[
+          { value: 'stream', label: 'Stream' },
+          { value: 'rent', label: 'Rent' },
+          { value: 'buy', label: 'Buy' },
+        ]}
+        value={group}
+        onChange={setGroup}
+      />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
+        {providers.map((offer) => (
+          <View
+            key={offer.providerId}
+            accessible
+            accessibilityLabel={`${offer.name}, ${labels[offer.type]}`}
+            style={{
+              width: fontScale > 1.4 ? Math.max(150, (width - 56) / 2) : 90,
+              alignItems: 'center',
+              gap: 5,
+            }}
+          >
+            <ProviderLogo url={offer.logoUrl} />
+            <Body style={[s.caption, { color: colors.text, textAlign: 'center' }]}>
+              {offer.name}
+            </Body>
+            {group === 'stream' && (
+              <Body muted style={[s.caption, { textAlign: 'center' }]}>
+                {labels[offer.type]}
+              </Body>
+            )}
           </View>
-        ) : null;
-      })}
-      {!data.offers.length && (
-        <Body muted>No US streaming, rental or purchase offers reported for this title.</Body>
+        ))}
+      </View>
+      {!providers.length && (
+        <Body muted style={s.caption}>
+          {!data.offers.length
+            ? 'No US offers reported.'
+            : `No ${group === 'stream' ? 'streaming' : group === 'rent' ? 'rental' : 'purchase'} offers reported.`}
+        </Body>
       )}
-      <Body muted style={s.caption}>
-        Availability data: JustWatch via TMDB · {cached ? 'Cached; last checked' : 'Checked'}{' '}
-        {new Date(data.checkedAt).toLocaleString()}.
-      </Body>
-      <Body muted style={s.caption}>
-        Offers can change. Check the provider for access and pricing. TV coverage can vary by
-        season.
-      </Body>
       {data.sourceUrl && (
         <Button
-          label="Check viewing options"
+          label="View viewing options"
           secondary
           onPress={() =>
             void Linking.openURL(data.sourceUrl!).catch(() =>
@@ -78,6 +96,18 @@ export function Availability({ data, loading }: { data?: AvailabilityData; loadi
           }
         />
       )}
+      <Body muted style={s.caption}>
+        United States · JustWatch via TMDB
+      </Body>
+      <Disclosure title="Availability details">
+        <Body muted style={s.caption}>
+          {cached ? 'Cached · last checked' : 'Checked'} {new Date(data.checkedAt).toLocaleString()}
+        </Body>
+        <Body muted style={s.caption}>
+          Offers and prices can change. TV availability can vary by season. Check the provider
+          before watching.
+        </Body>
+      </Disclosure>
       <InlineError message={error} />
     </View>
   );

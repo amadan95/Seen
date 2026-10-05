@@ -59,7 +59,7 @@ export default function Settings() {
     }
   }
   return (
-    <Screen>
+    <Screen inStack>
       <Heading large>Make it yours.</Heading>
       <Section title="Account">
         <Body>Local preview · no signed-in account</Body>

@@ -95,7 +95,6 @@ export default function Home() {
         </View>
       }
     >
-      <Heading large>Your next great watch.</Heading>
       {featured && (
         <View style={{ gap: 12 }}>
           <Poster
@@ -112,7 +111,7 @@ export default function Home() {
             {featured.reason}
           </Body>
           <Button
-            label={`Explore ${featured.media.title}`}
+            label="View title"
             secondary
             onPress={() =>
               router.push({ pathname: '/media/[id]', params: { id: featured.media.id } })
@@ -120,6 +119,32 @@ export default function Home() {
           />
         </View>
       )}
+      <Section
+        title="Watch tonight"
+        action={
+          <IconButton
+            name="chevron"
+            label="Discover more titles"
+            onPress={() => router.push('/(tabs)/discover')}
+          />
+        }
+      >
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 14 }}
+        >
+          {rail.map((p) => (
+            <PosterTile key={p.media.id} media={p.media} reason={p.reason} width={158} />
+          ))}
+        </ScrollView>
+        {!picks.length && (
+          <EmptyState
+            title="You’ve explored this catalog"
+            message="Search in Discover to explore more titles."
+          />
+        )}
+      </Section>
       <View style={{ backgroundColor: colors.surface, padding: 16, borderRadius: 12 }}>
         <Section
           inset
@@ -134,10 +159,10 @@ export default function Home() {
         >
           {library.opinions.length >= 2 ? (
             <View style={{ gap: 12 }}>
-              <Body muted>
+              <Body muted style={s.caption}>
                 {unplaced.length
                   ? `${unplaced.length} movie${unplaced.length === 1 ? '' : 's'} waiting to find a place.`
-                  : 'A few comparisons refine your list.'}
+                  : 'Your list is up to date.'}
               </Body>
               <Button
                 label="Refine your movies"
@@ -157,38 +182,6 @@ export default function Home() {
           )}
         </Section>
       </View>
-      <Section
-        title="Watch tonight"
-        action={
-          <IconButton
-            name="chevron"
-            label="Discover more titles"
-            onPress={() => router.push('/(tabs)/discover')}
-          />
-        }
-      >
-        <Body muted style={s.caption}>
-          {catalogUrl
-            ? 'Picks from your library. Open a title for US viewing options.'
-            : 'Ideas from your sample catalog.'}
-        </Body>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 14 }}
-        >
-          {rail.map((p) => (
-            <PosterTile key={p.media.id} media={p.media} reason={p.reason} width={158} />
-          ))}
-        </ScrollView>
-        {!picks.length && (
-          <EmptyState
-            title="You’ve explored this catalog"
-            message="Search in Discover to explore more titles."
-          />
-        )}
-      </Section>
-      <PreviewNotice />
       {catalogLoading && (
         <ActivityIndicator
           color={colors.accent}
@@ -216,6 +209,7 @@ export default function Home() {
         ))}
         {!recent.length && <Body muted>Your first log will appear here.</Body>}
       </Section>
+      <PreviewNotice />
     </Screen>
   );
 }

@@ -8,6 +8,7 @@ import {
   Button,
   Chip,
   EmptyState,
+  Disclosure,
   Heading,
   PreviewNotice,
   Screen,
@@ -53,7 +54,7 @@ export default function Rank() {
         contentContainerStyle={{ paddingBottom: 80 }}
         ListHeaderComponent={
           <View style={{ gap: 16 }}>
-            <Heading large>Your personal canon</Heading>
+            <Heading large>Your rankings</Heading>
             {added && (
               <Body accessibilityLiveRegion="polite">
                 {mediaById.get(added.mediaId)?.title} is ranked · {added.rankScore?.toFixed(1)} / 10
@@ -69,47 +70,38 @@ export default function Rank() {
               value={kind}
               onChange={setKind}
             />
-            <View style={{ gap: 8 }}>
-              <Segments
-                options={[
-                  { value: '10', label: 'Top 10' },
-                  { value: '25', label: 'Top 25' },
-                  { value: '50', label: 'Top 50' },
-                  { value: 'all', label: 'All' },
-                ]}
-                value={limit}
-                onChange={setLimit}
-              />
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {['Drama', 'Sci-fi', 'Crime'].map((g) => (
-                  <Chip
-                    key={g}
-                    label={g}
-                    selected={genre === g}
-                    onPress={() => setGenre(genre === g ? null : g)}
-                  />
-                ))}
+            <Disclosure
+              title={`Filters · ${limit === 'all' ? 'All' : `Top ${limit}`}${genre ? ` · ${genre}` : ''}`}
+            >
+              <View style={{ gap: 8 }}>
+                <Segments
+                  options={[
+                    { value: '10', label: 'Top 10' },
+                    { value: '25', label: 'Top 25' },
+                    { value: '50', label: 'Top 50' },
+                    { value: 'all', label: 'All' },
+                  ]}
+                  value={limit}
+                  onChange={setLimit}
+                />
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {['Drama', 'Sci-fi', 'Crime'].map((g) => (
+                    <Chip
+                      key={g}
+                      label={g}
+                      selected={genre === g}
+                      onPress={() => setGenre(genre === g ? null : g)}
+                    />
+                  ))}
+                </View>
               </View>
-            </View>
+            </Disclosure>
             <Button
               label="Refine your list"
               secondary
               icon="rank"
               onPress={() => router.push({ pathname: '/compare', params: { kind } })}
             />
-            <PreviewNotice />
-            <View style={[s.row, { justifyContent: 'space-between' }]}>
-              <Body muted style={s.caption}>
-                Assigned from your comparisons · /10
-              </Body>
-              <Chip label="Rank Score" selected={false} onPress={() => setAbout(!about)} />
-            </View>
-            {about && (
-              <Body muted style={s.caption}>
-                An automatically assigned personal preference index. Comparisons can change it;
-                filters don’t. It is not a critic rating or an enjoyment probability.
-              </Body>
-            )}
           </View>
         }
         renderItem={({ item }) => <MediaRow media={mediaById.get(item.mediaId)!} rank={item} />}
@@ -128,6 +120,14 @@ export default function Rank() {
         }
         ListFooterComponent={
           <View style={{ marginTop: 28, gap: 12 }}>
+            <Chip label="About Rank Score" selected={about} onPress={() => setAbout(!about)} />
+            {about && (
+              <Body muted style={s.caption}>
+                Your score / 10 comes from comparisons. Filters never change it. Early scores are
+                provisional.
+              </Body>
+            )}
+            <PreviewNotice />
             {unplaced.length > 0 && (
               <>
                 <Heading>Not yet placed</Heading>

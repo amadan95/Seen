@@ -132,7 +132,7 @@ export default function Compare() {
     ? snapshot(kind).items.find((i) => i.mediaId === params.target)
     : undefined;
   return (
-    <Screen>
+    <Screen inStack>
       <Stack.Screen options={{ gestureEnabled: !placement }} />
       <View style={[s.row, { justifyContent: 'space-between' }]}>
         <Body muted>
@@ -162,10 +162,9 @@ export default function Compare() {
         <>
           <View style={{ gap: 10, marginVertical: 12 }}>
             <Heading large>Which did you enjoy more?</Heading>
-            <Body muted>Tap a poster to choose.</Body>
             {placement && (
               <Body muted style={s.caption}>
-                Your watch is saved. Compare {targetMedia?.title} to place it in your ranking.
+                Your watch is saved. Choose a poster to place it.
               </Body>
             )}
           </View>
@@ -203,7 +202,7 @@ export default function Compare() {
             />
           </View>
           <Body muted style={[s.caption, { textAlign: 'center' }]}>
-            A few comparisons refine your list. Scores stay hidden while you choose.
+            Scores stay hidden while you choose.
           </Body>
         </>
       ) : (

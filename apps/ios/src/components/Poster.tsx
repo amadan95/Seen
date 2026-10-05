@@ -1,10 +1,10 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useState } from 'react';
 import Svg, { Circle, Path, Rect, Line, G } from 'react-native-svg';
 import { router } from 'expo-router';
 import type { Media, RankItem } from '@seen/contracts';
 import { colors, typography } from '../design/tokens';
-import { Body, Badge, s } from './ui';
+import { Body, s } from './ui';
 
 export function Poster({
   media,
@@ -229,15 +229,17 @@ export function MediaRow({
   trailing?: React.ReactNode;
   description?: string;
 }) {
+  const { fontScale } = useWindowDimensions();
+  const largeType = fontScale > 1.4;
   const open = () => router.push({ pathname: '/media/[id]', params: { id: media.id } });
   const label = `${media.title}, ${media.year ?? 'year unknown'}${rank?.position ? `, position ${rank.position}, your rank score ${rank.rankScore} out of 10, ${rank.evidence}` : ''}`;
   return (
-    <View style={ps.row}>
-      {rank?.position !== undefined && rank.position !== null && (
-        <Text style={ps.ordinal}>{rank.position}</Text>
+    <View style={[ps.row, largeType && { flexDirection: 'column', alignItems: 'stretch' }]}>
+      {!largeType && rank?.position !== undefined && rank.position !== null && (
+        <Body style={ps.ordinal}>{rank.position}</Body>
       )}
       <View style={[s.row, { flex: 1 }]}>
-        <Poster media={media} width={62} compact onPress={open} accessibilityLabel={label} />
+        <Poster media={media} width={80} compact onPress={open} accessibilityLabel={label} />
         <Pressable
           onPress={open}
           accessible={false}
@@ -256,25 +258,36 @@ export function MediaRow({
             {media.title}
           </Body>
           <Body muted style={s.caption}>
+            {largeType && rank?.position ? `#${rank.position} · ` : ''}
             {media.year ?? 'Year unknown'} · {media.kind === 'movie' ? 'Movie' : 'TV'}
           </Body>
-          <Body muted style={s.caption}>
-            {description ?? media.genres.join(' · ')}
-          </Body>
-          {rank?.evidence === 'provisional' && <Badge label="Provisional" />}
+          {description && (
+            <Body muted style={s.caption}>
+              {description}
+            </Body>
+          )}
+          {rank?.evidence === 'provisional' && (
+            <Body muted style={s.caption}>
+              Provisional
+            </Body>
+          )}
         </Pressable>
       </View>
       {rank && (
-        <Text
+        <Body
           accessibilityLabel={
             rank.rankScore === null
               ? 'Not yet scored'
               : `Your rank score ${rank.rankScore.toFixed(1)} out of 10`
           }
-          style={[ps.score, rank.rankScore === null && { color: colors.muted }]}
+          style={[
+            ps.score,
+            rank.rankScore === null && { color: colors.muted },
+            largeType && { textAlign: 'left' },
+          ]}
         >
           {rank.rankScore === null ? '—' : rank.rankScore.toFixed(1)}
-        </Text>
+        </Body>
       )}
       {trailing}
     </View>
@@ -283,7 +296,7 @@ export function MediaRow({
 const ps = StyleSheet.create({
   lettering: { position: 'absolute', top: 14, left: 12, right: 12 },
   posterTitle: { fontSize: 14, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
-  posterYear: { fontSize: 10, marginTop: 4, letterSpacing: 2 },
+  posterYear: { fontSize: 11, marginTop: 4, letterSpacing: 2 },
   row: {
     flexDirection: 'row',
     gap: 10,
@@ -304,7 +317,9 @@ const ps = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
-    minWidth: 59,
+    minWidth: 48,
+    flexShrink: 0,
+    lineHeight: 32,
     textAlign: 'right',
     paddingVertical: 8,
   },

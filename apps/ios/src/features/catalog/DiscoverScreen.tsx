@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, TextInput, View, useWindowDimensions } from 'react-native';
 import type { MediaKind } from '@seen/contracts';
 import { catalog } from '@seen/fixtures';
 import { discoveryPicks, filterCatalog } from '@seen/domain';
@@ -8,6 +8,7 @@ import {
   Body,
   Button,
   Chip,
+  Disclosure,
   EmptyState,
   Heading,
   PreviewNotice,
@@ -16,13 +17,16 @@ import {
   Segments,
   s,
 } from '../../components/ui';
-import { MediaRow } from '../../components/Poster';
+import { PosterTile } from '../../components/Poster';
 import { colors } from '../../design/tokens';
 import { catalogUrl } from './client';
 import { useCatalogSearch } from './useCatalogSearch';
 
 export function DiscoverScreen({ search = false }: { search?: boolean }) {
   const { library, mediaById } = useLibrary();
+  const { width, fontScale } = useWindowDimensions();
+  const columns = fontScale > 1.4 ? 1 : 2;
+  const posterWidth = (width - 40 - (columns - 1) * 14) / columns;
   const [query, setQuery] = useState(''),
     [kind, setKind] = useState<MediaKind | 'all'>('all'),
     [short, setShort] = useState(false),
@@ -47,26 +51,19 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
         query,
       );
   return (
-    <Screen scroll={false}>
+    <Screen scroll={false} inStack={search}>
       <FlatList
+        key={columns}
+        numColumns={columns}
+        columnWrapperStyle={columns > 1 ? { gap: 14 } : undefined}
         data={results}
         keyExtractor={(m) => m.id}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 80 }}
+        contentContainerStyle={{ paddingBottom: 80, gap: 16 }}
         ListHeaderComponent={
           <View style={{ gap: 10, marginBottom: 12 }}>
             {!search && <Heading large>Discover</Heading>}
-            {catalogUrl && (
-              <Segments
-                options={[
-                  { value: 'live', label: 'Live catalog' },
-                  { value: 'sample', label: 'Sample catalog' },
-                ]}
-                value={live ? 'live' : 'sample'}
-                onChange={(value) => setLive(value === 'live')}
-              />
-            )}
             <TextInput
               accessibilityLabel="Search movies and TV"
               placeholder="Search movies and shows"
@@ -91,34 +88,37 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
                 if (value === 'tv') setShort(false);
               }}
             />
-            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-              <Chip
-                label="Under 2 hours"
-                icon="clock"
-                selected={short}
-                onPress={() => {
-                  setShort(!short);
-                  if (!short) setKind('movie');
-                }}
-              />
-              {(['Sci-fi', 'Drama', 'Comedy', 'Crime'] as const).map((g) => (
+            <Disclosure title={`Filters${genre || short ? ' · active' : ''}`}>
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                 <Chip
-                  key={g}
-                  label={g}
-                  selected={genre === g}
-                  onPress={() => setGenre(genre === g ? null : g)}
+                  label="Under 2 hours"
+                  icon="clock"
+                  selected={short}
+                  onPress={() => {
+                    setShort(!short);
+                    if (!short) setKind('movie');
+                  }}
                 />
-              ))}
-            </View>
-            <Heading large>
-              {query
-                ? 'Search results'
-                : genre
-                  ? `${genre} picks`
-                  : search
-                    ? 'Explore the catalog'
-                    : 'Find your kind of cinema.'}
-            </Heading>
+                {(['Sci-fi', 'Drama', 'Comedy', 'Crime'] as const).map((g) => (
+                  <Chip
+                    key={g}
+                    label={g}
+                    selected={genre === g}
+                    onPress={() => setGenre(genre === g ? null : g)}
+                  />
+                ))}
+              </View>
+              {catalogUrl && (
+                <Segments
+                  options={[
+                    { value: 'live', label: 'Live catalog' },
+                    { value: 'sample', label: 'Sample catalog' },
+                  ]}
+                  value={live ? 'live' : 'sample'}
+                  onChange={(value) => setLive(value === 'live')}
+                />
+              )}
+            </Disclosure>
             {live && remote.page?.stale && (
               <Body muted style={s.caption}>
                 Showing recently cached titles while TMDB is unavailable.
@@ -136,9 +136,10 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
           </View>
         }
         renderItem={({ item }) => (
-          <MediaRow
+          <PosterTile
             media={mediaById.get(item.id) ?? item}
-            description={live ? undefined : reasons.get(item.id)}
+            width={posterWidth}
+            reason={live ? String(item.year ?? 'Year unknown') : reasons.get(item.id)}
           />
         )}
         ListEmptyComponent={

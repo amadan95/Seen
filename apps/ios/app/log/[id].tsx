@@ -40,7 +40,7 @@ export default function LogScreen() {
   const saving = useRef(false);
   if (!media)
     return (
-      <Screen>
+      <Screen inStack>
         <EmptyState title="Title unavailable" message="Go back and choose a title from Discover." />
       </Screen>
     );
@@ -101,9 +101,9 @@ export default function LogScreen() {
     }
   }
   return (
-    <Screen>
+    <Screen inStack>
       <View style={s.row}>
-        <Poster media={media} width={58} compact />
+        <Poster media={media} width={110} compact />
         <View style={{ flex: 1, gap: 4 }}>
           <Heading>{media.title}</Heading>
           <Body muted>
@@ -111,7 +111,7 @@ export default function LogScreen() {
           </Body>
         </View>
       </View>
-      <Heading large>How did {media.title} stay with you?</Heading>
+      <Heading large>How was it?</Heading>
       {media.kind === 'tv' && (
         <View style={{ gap: 12 }}>
           <Heading>Where are you with this show?</Heading>

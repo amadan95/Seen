@@ -1,10 +1,11 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import {
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
   type TextProps,
   type ViewStyle,
 } from 'react-native';
@@ -13,11 +14,38 @@ import { colors, typography } from '../design/tokens';
 import { Icon, type IconName } from './Icon';
 
 export function Body({ muted = false, style, ...props }: TextProps & { muted?: boolean }) {
-  return <Text {...props} style={[s.body, muted && { color: colors.muted }, style]} />;
+  const { fontScale } = useWindowDimensions();
+  const custom = StyleSheet.flatten(style);
+  const fontSize = custom?.fontSize ?? s.body.fontSize;
+  const lineHeight = Math.max(
+    custom?.lineHeight ?? Math.ceil(fontSize * 1.47),
+    Math.ceil(fontSize * 1.2),
+  );
+  return (
+    <Text
+      {...props}
+      allowFontScaling={false}
+      style={[
+        s.body,
+        muted && { color: colors.muted },
+        style,
+        { fontSize: fontSize * fontScale, lineHeight: lineHeight * fontScale },
+      ]}
+    />
+  );
 }
 export function Heading({ children, large = false }: { children: ReactNode; large?: boolean }) {
+  const { fontScale } = useWindowDimensions();
+  const size = large ? 34 : 22;
   return (
-    <Text accessibilityRole="header" style={large ? s.title : s.heading}>
+    <Text
+      accessibilityRole="header"
+      allowFontScaling={false}
+      style={[
+        large ? s.title : s.heading,
+        { fontSize: size * fontScale, lineHeight: Math.ceil(size * 1.25) * fontScale },
+      ]}
+    >
       {children}
     </Text>
   );
@@ -27,11 +55,13 @@ export function Screen({
   title,
   action,
   scroll = true,
+  inStack = false,
 }: {
   children: ReactNode;
   title?: string;
   action?: ReactNode;
   scroll?: boolean;
+  inStack?: boolean;
 }) {
   const content = (
     <>
@@ -45,7 +75,7 @@ export function Screen({
     </>
   );
   return (
-    <SafeAreaView style={s.screen} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={s.screen} edges={inStack ? ['left', 'right'] : ['top', 'left', 'right']}>
       {scroll ? (
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
           {content}
@@ -71,6 +101,7 @@ export function Button({
   icon?: IconName;
   style?: ViewStyle;
 }) {
+  const { fontScale } = useWindowDimensions();
   return (
     <Pressable
       accessibilityRole="button"
@@ -87,7 +118,17 @@ export function Button({
       ]}
     >
       {icon && <Icon name={icon} color={secondary ? colors.text : colors.background} size={20} />}
-      <Text style={[s.buttonText, { color: secondary ? colors.text : colors.background }]}>
+      <Text
+        allowFontScaling={false}
+        style={[
+          s.buttonText,
+          {
+            color: secondary ? colors.text : colors.background,
+            fontSize: 16 * fontScale,
+            lineHeight: 22 * fontScale,
+          },
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -134,6 +175,33 @@ export function Section({
     </View>
   );
 }
+export function Disclosure({ title, children }: { title: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={{ gap: 12 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen(!open)}
+        style={[
+          s.row,
+          {
+            minHeight: 48,
+            justifyContent: 'space-between',
+            paddingVertical: 8,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.border,
+          },
+        ]}
+      >
+        <Body style={{ flex: 1 }}>{title}</Body>
+        <Icon name={open ? 'close' : 'plus'} size={18} color={colors.muted} />
+      </Pressable>
+      {open && children}
+    </View>
+  );
+}
 export function Chip({
   label,
   selected,
@@ -145,6 +213,7 @@ export function Chip({
   onPress: () => void;
   icon?: IconName;
 }) {
+  const { fontScale } = useWindowDimensions();
   return (
     <Pressable
       accessibilityRole="button"
@@ -154,7 +223,18 @@ export function Chip({
       style={[s.chip, selected && { backgroundColor: colors.accent, borderColor: colors.accent }]}
     >
       {icon && <Icon name={icon} size={17} color={selected ? colors.background : colors.muted} />}
-      <Text style={[s.chipText, { color: selected ? colors.background : colors.text }]}>
+      <Text
+        allowFontScaling={false}
+        style={[
+          s.chipText,
+          {
+            color: selected ? colors.background : colors.text,
+            fontSize: 14 * fontScale,
+            lineHeight: 20 * fontScale,
+            flexShrink: 1,
+          },
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
@@ -169,6 +249,7 @@ export function Segments<T extends string>({
   value: T;
   onChange: (value: T) => void;
 }) {
+  const { fontScale } = useWindowDimensions();
   return (
     <View style={s.segments}>
       {options.map((o) => (
@@ -180,7 +261,17 @@ export function Segments<T extends string>({
           style={[s.segment, o.value === value && { backgroundColor: colors.accent }]}
         >
           <Text
-            style={[s.segmentText, { color: o.value === value ? colors.background : colors.muted }]}
+            allowFontScaling={false}
+            style={[
+              s.segmentText,
+              {
+                color: o.value === value ? colors.background : colors.muted,
+                fontSize: 15 * fontScale,
+                lineHeight: 21 * fontScale,
+                flexShrink: 1,
+                textAlign: 'center',
+              },
+            ]}
           >
             {o.label}
           </Text>
@@ -192,7 +283,9 @@ export function Segments<T extends string>({
 export function Badge({ label }: { label: string }) {
   return (
     <View style={s.badge}>
-      <Text style={s.caption}>{label}</Text>
+      <Body muted style={s.caption}>
+        {label}
+      </Body>
     </View>
   );
 }
@@ -227,9 +320,9 @@ export function EmptyState({
 }
 export function InlineError({ message }: { message: string | null }) {
   return message ? (
-    <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={s.error}>
+    <Body accessibilityRole="alert" accessibilityLiveRegion="assertive" style={s.error}>
       {message}
-    </Text>
+    </Body>
   ) : null;
 }
 export const s = StyleSheet.create({

@@ -16,11 +16,13 @@ typography:
     fontFamily: 'Georgia'
     fontSize: '34pt'
     fontWeight: 400
+    lineHeight: '43pt'
     letterSpacing: '-0.7pt'
   headline:
     fontFamily: 'Georgia'
     fontSize: '22pt'
     fontWeight: 400
+    lineHeight: '28pt'
   title:
     fontFamily: 'Georgia'
     fontSize: '19pt'
@@ -150,11 +152,11 @@ The frontmatter records the shared hierarchy: large heading, section heading, me
 
 ## Layout
 
-The shared Screen respects top and side safe areas, scrolls by default and uses the screen inset, content gap and bottom clearance from frontmatter. Section uses its own gap and top margin; `inset` removes that top margin inside a containing surface. Horizontal rails scroll independently. Rank and Watchlist use list content with bottom clearance rather than placing a nested vertical list in a ScrollView.
+The shared Screen respects side safe areas and adds a top inset only outside native header stacks, scrolls by default and uses the screen inset, content gap and bottom clearance from frontmatter. Section uses its own gap and top margin; `inset` removes that top margin inside a containing surface. Horizontal rails scroll independently. Rank and Watchlist use list content with bottom clearance rather than placing a nested vertical list in a ScrollView.
 
-Home’s feature spans the content width and crops artwork with cover sizing. Its height increases for larger font scale; supporting title, reason and action remain below the artwork. Continue ranking uses a padded surface inset; Watch tonight uses a horizontal poster rail. Other routes use headings, controls, ruled lists and grouped detail sections.
+Artwork has priority over explanatory copy. Discover and Watchlist use two-column 2:3 poster grids, switching to one column at larger text sizes. Home’s feature spans the content width and crops artwork with cover sizing. Its height increases for larger font scale; supporting title, reason and action remain below the artwork. Watch tonight uses a horizontal poster rail before the padded Continue ranking inset. Other routes use headings, controls, ruled lists and grouped detail sections.
 
-There is no defined desktop breakpoint system. Window width and font scale drive native layout adjustments. Comparison cards stack when text scaling requires it. Keep large text within scrolling content and avoid fixed-height text containers.
+There is no defined desktop breakpoint system. Window width and font scale drive native layout adjustments. Comparison cards stack when text scaling requires it. Keep large text within scrolling content and avoid fixed-height text containers. Shared text explicitly scales font size and line height together using the device fontScale, with automatic text scaling disabled to prevent double scaling. This preserves the user’s Dynamic Type preference while keeping measured glyph heights accurate.
 
 ## Elevation & Depth
 
@@ -190,7 +192,7 @@ Five labeled tabs remain Home, Discover, Rank, Watchlist and Profile. iOS uses N
 
 ### Posters and Programme Rows
 
-Real catalog poster URLs render with cover sizing. Missing real artwork displays Poster unavailable; fixtures retain the original abstract artwork. Posters open detail and carry descriptive accessibility labels. Programme rows combine a compact poster, Georgia title, system metadata and a fine bottom rule. Rank rows place ordinal left and score right, with Provisional visible when applicable; unplaced scores show an em dash.
+Real catalog poster URLs render with cover sizing. Missing real artwork displays Poster unavailable; fixtures retain the original abstract artwork. Posters open detail and carry descriptive accessibility labels. Ranking and history rows combine an 80-point poster, Georgia title, one metadata line and a fine bottom rule. Detail leads with a 250-point portrait poster, reduced to 190 points for larger text; title, concise metadata, score and actions follow. Full overview, title details and cast remain available through expandable controls. Rank rows place ordinal left and score right at normal text size and stack at larger sizes, with Provisional visible when applicable; unplaced scores show an em dash.
 
 ### Logging and Comparison
 
@@ -213,3 +215,9 @@ Sentiment choices save durably before automatically opening targeted comparisons
 - **Don’t** show scores on comparison posters or infer a score from sentiment alone.
 - **Don’t** fabricate social activity, taste percentages or provider availability.
 - **Don’t** present the local preview as authenticated production service or claim native accessibility/device release checks have passed.
+
+### Availability and secondary controls
+
+Stream, Rent and Buy select one provider group at a time. Providers appear as logos with short names and access-type labels; no duplicated rental/purchase lists fill the detail screen. Region and JustWatch/TMDB attribution remain visible. Checked time and offer caveats expand under Availability details. Empty groups and failed checks retain distinct messages.
+
+Discover, ranking and Watchlist keep less-used filters and sorting inside expandable controls. Active ranking/Discover filters appear in the control label. Preview explanations and score definitions sit after content or in Settings rather than competing with film artwork.
