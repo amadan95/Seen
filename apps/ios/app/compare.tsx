@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 import type { ComparisonAnswer, Media } from '@seen/contracts';
-import { catalog } from '@seen/fixtures';
 import { answerComparison, pickComparison } from '@seen/domain';
 import { useLibrary } from '../src/local/LibraryProvider';
 import { Body, Button, EmptyState, Heading, InlineError, Screen, s } from '../src/components/ui';
@@ -11,7 +10,7 @@ import { Poster } from '../src/components/Poster';
 export default function Compare() {
   const params = useLocalSearchParams<{ kind?: string; target?: string }>(),
     kind = params.kind === 'tv' ? 'tv' : 'movie';
-  const { library, mutate, busy, snapshot } = useLibrary(),
+  const { library, mutate, busy, snapshot, catalog } = useLibrary(),
     { width, fontScale } = useWindowDimensions();
   const [steps, setSteps] = useState(0),
     [excluded, setExcluded] = useState(new Set<string>()),
@@ -74,7 +73,7 @@ export default function Compare() {
         <Poster media={media} width={posterWidth} />
         <Body style={{ fontWeight: '600', textAlign: 'center' }}>{media.title}</Body>
         <Body muted style={s.caption}>
-          {media.year}
+          {media.year ?? 'Year unknown'}
         </Body>
       </Pressable>
     );

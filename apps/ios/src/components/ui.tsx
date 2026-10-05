@@ -199,7 +199,7 @@ export function PreviewNotice() {
     <View style={s.notice}>
       <Icon name="lock" size={14} color={colors.muted} />
       <Body muted style={s.caption}>
-        Local preview · sample catalog · only on this device
+        Local preview · saved only on this device
       </Body>
     </View>
   );

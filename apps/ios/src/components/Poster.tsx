@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
 import Svg, { Circle, Path, Rect, Line, G } from 'react-native-svg';
 import { router } from 'expo-router';
 import type { Media, RankItem } from '@seen/contracts';
@@ -15,6 +16,36 @@ export function Poster({
   width?: number;
   compact?: boolean;
 }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  if (media.posterUrl && failedUrl !== media.posterUrl)
+    return (
+      <Image
+        source={{ uri: media.posterUrl }}
+        resizeMode="cover"
+        accessible={false}
+        onError={() => setFailedUrl(media.posterUrl ?? null)}
+        style={{ width, height: width * 1.5, borderRadius: 8, backgroundColor: colors.surface }}
+      />
+    );
+  if (media.source === 'tmdb')
+    return (
+      <View
+        accessible={false}
+        style={{
+          width,
+          height: width * 1.5,
+          borderRadius: 8,
+          backgroundColor: colors.surface,
+          padding: 8,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Body muted style={{ fontSize: compact ? 9 : 12, textAlign: 'center' }}>
+          Poster unavailable
+        </Body>
+      </View>
+    );
   const [background, accent, ink] = media.palette;
   return (
     <View
@@ -104,7 +135,7 @@ export function Poster({
       {!compact && (
         <View style={ps.lettering}>
           <Text style={[ps.posterTitle, { color: ink }]}>{media.title}</Text>
-          <Text style={[ps.posterYear, { color: ink }]}>{media.year}</Text>
+          <Text style={[ps.posterYear, { color: ink }]}>{media.year ?? 'Year unknown'}</Text>
         </View>
       )}
     </View>
@@ -122,7 +153,7 @@ export function PosterTile({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${media.title}, ${media.kind === 'movie' ? 'movie' : 'TV show'}, ${media.year}. ${reason ?? ''}`}
+      accessibilityLabel={`${media.title}, ${media.kind === 'movie' ? 'movie' : 'TV show'}, ${media.year ?? 'year unknown'}. ${reason ?? ''}`}
       onPress={() => router.push({ pathname: '/media/[id]', params: { id: media.id } })}
       style={{ width, gap: 5 }}
     >
@@ -153,14 +184,14 @@ export function MediaRow({
       <Pressable
         onPress={() => router.push({ pathname: '/media/[id]', params: { id: media.id } })}
         accessibilityRole="button"
-        accessibilityLabel={`${media.title}, ${media.year}${rank?.position ? `, position ${rank.position}, your rank score ${rank.rankScore} out of 10, ${rank.evidence}` : ''}`}
+        accessibilityLabel={`${media.title}, ${media.year ?? 'year unknown'}${rank?.position ? `, position ${rank.position}, your rank score ${rank.rankScore} out of 10, ${rank.evidence}` : ''}`}
         style={[s.row, { flex: 1 }]}
       >
         <Poster media={media} width={52} compact />
         <View style={{ flex: 1, gap: 3 }}>
           <Body style={{ fontWeight: '600', fontSize: 16, lineHeight: 23 }}>{media.title}</Body>
           <Body muted style={s.caption}>
-            {media.year} · {media.kind === 'movie' ? 'Movie' : 'TV'}
+            {media.year ?? 'Year unknown'} · {media.kind === 'movie' ? 'Movie' : 'TV'}
           </Body>
           {rank?.evidence === 'provisional' && <Badge label="Provisional" />}
         </View>

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
-import { catalog, mediaById, sampleLibrary } from '@seen/fixtures';
+import { sampleLibrary } from '@seen/fixtures';
 import { discoveryPicks } from '@seen/domain';
 import { useLibrary } from '../../src/local/LibraryProvider';
 import {
@@ -19,7 +19,7 @@ import {
 import { MediaRow, Poster, PosterTile } from '../../src/components/Poster';
 
 export default function Home() {
-  const { library, mutate, snapshot, busy } = useLibrary();
+  const { library, mutate, snapshot, busy, catalog, mediaById } = useLibrary();
   const [error, setError] = useState<string | null>(null);
   function start(sample: boolean) {
     setError(null);
@@ -121,7 +121,7 @@ export default function Home() {
         }
       >
         <Body muted style={s.caption}>
-          Ideas from the sample catalog. Check availability before watching.
+          Ideas from your local catalog. Availability is not connected yet.
         </Body>
         <ScrollView
           horizontal
@@ -135,7 +135,7 @@ export default function Home() {
         {!picks.length && (
           <EmptyState
             title="You’ve explored this catalog"
-            message="The initial sample catalog is small. Live catalog search comes in a later build."
+            message="Search in Discover to explore more titles."
           />
         )}
       </Section>

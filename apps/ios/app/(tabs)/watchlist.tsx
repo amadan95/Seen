@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { FlatList, View } from 'react-native';
 import type { MediaKind } from '@seen/contracts';
-import { mediaById } from '@seen/fixtures';
 import { setPriority, setWatchlist } from '@seen/domain';
 import { useLibrary } from '../../src/local/LibraryProvider';
 import {
@@ -21,7 +20,7 @@ import {
 import { MediaRow } from '../../src/components/Poster';
 
 export default function Watchlist() {
-  const { library, mutate, busy } = useLibrary(),
+  const { library, mutate, busy, mediaById } = useLibrary(),
     [kind, setKind] = useState<MediaKind | 'all'>('all'),
     [sort, setSort] = useState('added'),
     [short, setShort] = useState(false),

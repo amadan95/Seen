@@ -199,7 +199,8 @@ var emptyLibrary = () => ({
   opinions: [],
   logs: [],
   comparisons: [],
-  watchlist: []
+  watchlist: [],
+  catalogEntries: []
 });
 function saveLog(state, catalog, input, eventId, now) {
   if (state.logs.some((l) => l.id === eventId)) return state;
@@ -302,7 +303,7 @@ function discoveryPicks(catalog, state) {
     );
     return {
       media,
-      reason: source ? `Because you liked ${source.title}` : "From the sample catalog"
+      reason: source ? `Because you liked ${source.title}` : media.source === "tmdb" ? "From the TMDB catalog" : "From the sample catalog"
     };
   });
 }

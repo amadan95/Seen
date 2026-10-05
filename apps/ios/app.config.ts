@@ -21,7 +21,7 @@ const config: ExpoConfig = {
   plugins: [
     'expo-router',
     'expo-sqlite',
-    ['expo-build-properties', { ios: { deploymentTarget: '17.0' } }],
+    ['expo-build-properties', { ios: { deploymentTarget: '17.0', enableSceneSupport: true } }],
   ],
   web: { bundler: 'metro', output: 'single', name: 'Seen Preview' },
   experiments: { typedRoutes: true },

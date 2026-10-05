@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { FlatList, View } from 'react-native';
 import type { MediaKind } from '@seen/contracts';
-import { mediaById } from '@seen/fixtures';
 import { useLibrary } from '../../src/local/LibraryProvider';
 import {
   Body,
@@ -18,7 +17,7 @@ import {
 import { MediaRow } from '../../src/components/Poster';
 
 export default function Rank() {
-  const { snapshot } = useLibrary(),
+  const { snapshot, mediaById } = useLibrary(),
     [kind, setKind] = useState<MediaKind>('movie'),
     [limit, setLimit] = useState('10'),
     [genre, setGenre] = useState<string | null>(null),

@@ -10,6 +10,7 @@
     "dev": "pnpm --filter @seen/ios start",
     "ios": "pnpm --filter @seen/ios ios",
     "web": "pnpm --filter @seen/ios web",
+    "catalog:dev": "node --import tsx scripts/catalog-dev.ts",
     "typecheck": "tsc --noEmit && pnpm -r typecheck",
     "lint": "eslint .",
     "test": "vitest run",
@@ -20,6 +21,8 @@
     "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@seen/catalog": "workspace:*",
+    "@seen/contracts": "workspace:*",
     "@eslint/js": "10.0.1",
     "@types/node": "26.6.4",
     "esbuild": "0.28.2",

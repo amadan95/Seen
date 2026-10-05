@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Alert, Platform, View } from 'react-native';
-import { catalog, mediaById, sampleLibrary } from '@seen/fixtures';
+import { sampleLibrary } from '@seen/fixtures';
 import { emptyLibrary } from '@seen/domain';
 import { useLibrary } from '../src/local/LibraryProvider';
 import { Body, Button, InlineError, Screen, Section, s } from '../src/components/ui';
 import { colors } from '../src/design/tokens';
 
 export default function Settings() {
-  const { library, mutate, busy } = useLibrary(),
+  const { library, mutate, busy, mediaById } = useLibrary(),
     [error, setError] = useState<string | null>(null),
     [exported, setExported] = useState(false);
   function replace(sample: boolean) {
@@ -106,13 +106,16 @@ export default function Settings() {
       <Section title="About Seen">
         <Body>Version 0.1.0 · development preview</Body>
         <Body muted style={s.caption}>
-          {catalog.length} illustrative titles. Original abstract poster art. The app icon is an
-          existing ImageGen concept; final icon approval is pending.
+          Sample titles use original abstract art. Live title metadata and images are supplied by
+          TMDB. The app icon is an existing ImageGen concept; final icon approval is pending.
         </Body>
         <Body muted style={s.caption}>
-          Rank Scores are personal indices derived from comparisons, not critic ratings. Live
+          Rank Scores are personal indices derived from comparisons, not critic ratings. Hosted
           catalog, Supabase authentication, server ranking, offline sync, moderation, and account
           deletion are release gates.
+        </Body>
+        <Body muted style={s.caption}>
+          This product uses the TMDB API but is not endorsed or certified by TMDB.
         </Body>
       </Section>
     </Screen>

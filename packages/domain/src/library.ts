@@ -16,6 +16,7 @@ export const emptyLibrary = (): Library => ({
   logs: [],
   comparisons: [],
   watchlist: [],
+  catalogEntries: [],
 });
 export interface LogInput {
   mediaId: string;
@@ -198,7 +199,11 @@ export function discoveryPicks(
       );
       return {
         media,
-        reason: source ? `Because you liked ${source.title}` : 'From the sample catalog',
+        reason: source
+          ? `Because you liked ${source.title}`
+          : media.source === 'tmdb'
+            ? 'From the TMDB catalog'
+            : 'From the sample catalog',
       };
     });
 }

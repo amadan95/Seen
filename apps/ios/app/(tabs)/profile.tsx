@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
 import { View } from 'react-native';
-import { mediaById } from '@seen/fixtures';
 import { useLibrary } from '../../src/local/LibraryProvider';
 import {
   Body,
@@ -17,7 +16,7 @@ import { Icon } from '../../src/components/Icon';
 import { colors } from '../../src/design/tokens';
 
 export default function Profile() {
-  const { library, snapshot } = useLibrary();
+  const { library, snapshot, mediaById } = useLibrary();
   const top = snapshot('movie')
     .items.filter((i) => i.position !== null)
     .slice(0, 3);

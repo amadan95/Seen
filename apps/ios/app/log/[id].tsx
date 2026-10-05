@@ -3,7 +3,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Switch, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import type { Library, Sentiment, TvStatus } from '@seen/contracts';
-import { mediaById, catalog } from '@seen/fixtures';
 import { saveLog } from '@seen/domain';
 import { useLibrary } from '../../src/local/LibraryProvider';
 import {
@@ -23,8 +22,8 @@ import { colors } from '../../src/design/tokens';
 
 export default function LogScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(),
-    media = mediaById.get(id),
-    { library, mutate, busy } = useLibrary();
+    { library, mutate, busy, catalog, mediaById } = useLibrary(),
+    media = mediaById.get(id);
   const opinion = library.opinions.find((o) => o.mediaId === id),
     latest = [...library.logs].reverse().find((l) => l.mediaId === id);
   const [sentiment, setSentiment] = useState<Sentiment | null>(opinion?.sentiment ?? null),
@@ -41,10 +40,7 @@ export default function LogScreen() {
   if (!media)
     return (
       <Screen>
-        <EmptyState
-          title="Title unavailable"
-          message="Go back and choose a title from the sample catalog."
-        />
+        <EmptyState title="Title unavailable" message="Go back and choose a title from Discover." />
       </Screen>
     );
   async function save(value: Sentiment | null) {

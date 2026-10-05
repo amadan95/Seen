@@ -1,7 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { View } from 'react-native';
-import { mediaById } from '@seen/fixtures';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Linking, View } from 'react-native';
 import { setWatchlist } from '@seen/domain';
 import { useLibrary } from '../../src/local/LibraryProvider';
 import {
@@ -18,18 +17,47 @@ import {
 } from '../../src/components/ui';
 import { Poster } from '../../src/components/Poster';
 import { colors } from '../../src/design/tokens';
+import { catalogUrl, loadCatalogDetail } from '../../src/features/catalog/client';
 
 export default function MediaDetail() {
   const { id } = useLocalSearchParams<{ id: string }>(),
-    media = mediaById.get(id),
-    { library, mutate, snapshot, busy } = useLibrary();
+    { library, mutate, snapshot, busy, mediaById, cacheMedia } = useLibrary(),
+    media = mediaById.get(id);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false),
+    [detailError, setDetailError] = useState<string | null>(null),
+    [retry, setRetry] = useState(0),
+    [stale, setStale] = useState(false);
+  const live = media?.source === 'tmdb';
+  useEffect(() => {
+    if (!live || !catalogUrl) return;
+    const abort = new AbortController();
+    setLoading(true);
+    setDetailError(null);
+    void loadCatalogDetail(id, abort.signal)
+      .then((result) => {
+        if (!abort.signal.aborted) {
+          cacheMedia([result.media]);
+          setStale(result.stale);
+        }
+      })
+      .catch(() => {
+        if (!abort.signal.aborted)
+          setDetailError(
+            'Details could not refresh. Your saved title and library are still available.',
+          );
+      })
+      .finally(() => {
+        if (!abort.signal.aborted) setLoading(false);
+      });
+    return () => abort.abort();
+  }, [id, live, retry, cacheMedia]);
   if (!media)
     return (
       <Screen>
         <EmptyState
           title="Title unavailable"
-          message="This title isn’t in the sample catalog."
+          message="This title isn’t available in the local catalog."
           action={
             <Button label="Back to Discover" onPress={() => router.replace('/(tabs)/discover')} />
           }
@@ -54,7 +82,7 @@ export default function MediaDetail() {
         <View style={{ flex: 1, gap: 9 }}>
           <Heading>{media.title}</Heading>
           <Body muted style={{ fontSize: 15 }}>
-            {media.year} · {media.kind === 'movie' ? 'Movie' : 'TV show'}
+            {media.year ?? 'Year unknown'} · {media.kind === 'movie' ? 'Movie' : 'TV show'}
           </Body>
           <Body muted style={s.caption}>
             {media.kind === 'movie'
@@ -70,6 +98,20 @@ export default function MediaDetail() {
           </Body>
         </View>
       </View>
+      {loading && (
+        <ActivityIndicator color={colors.accent} accessibilityLabel="Refreshing title details" />
+      )}
+      {detailError && (
+        <>
+          <InlineError message={detailError} />
+          <Button label="Retry details" secondary onPress={() => setRetry((value) => value + 1)} />
+        </>
+      )}
+      {stale && (
+        <Body muted style={s.caption}>
+          Showing recently cached metadata.
+        </Body>
+      )}
       <View style={[s.row, { paddingVertical: 12 }]}>
         <Body
           style={{
@@ -119,7 +161,7 @@ export default function MediaDetail() {
         </Body>
       </Section>
       <Section title="Overview">
-        <Body muted>{media.synopsis}</Body>
+        <Body muted>{media.synopsis || 'No overview is available for this title.'}</Body>
       </Section>
       {opinion && (
         <Section title="Your watch">
@@ -140,9 +182,21 @@ export default function MediaDetail() {
         </Section>
       )}
       <Body muted style={s.caption}>
-        Illustrative metadata and original abstract artwork. Live TMDB metadata and credits will be
-        added after vendor access is configured.
+        {live
+          ? 'This product uses the TMDB API but is not endorsed or certified by TMDB.'
+          : 'Illustrative metadata and original abstract artwork.'}
       </Body>
+      {media.sourceUrl && (
+        <Button
+          label="View on TMDB"
+          secondary
+          onPress={() =>
+            void Linking.openURL(media.sourceUrl!).catch(() =>
+              setError('The source link could not be opened.'),
+            )
+          }
+        />
+      )}
     </Screen>
   );
 }

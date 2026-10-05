@@ -1,4 +1,5 @@
 import { z } from 'zod';
+export * from './identity.ts';
 
 export const mediaKindSchema = z.enum(['movie', 'tv']);
 export const sentimentSchema = z.enum(['liked', 'fine', 'disliked']);
@@ -12,13 +13,18 @@ export const mediaSchema = z.object({
   id: z.string().min(1),
   kind: mediaKindSchema,
   title: z.string().min(1),
-  year: z.number().int(),
+  year: z.number().int().nullable(),
   runtimeMinutes: z.number().int().positive().nullable(),
   episodeMinutes: z.number().int().positive().nullable(),
   genres: z.array(z.string()),
   synopsis: z.string(),
   palette: z.tuple([z.string(), z.string(), z.string()]),
   artwork: z.enum(['orbit', 'stairs', 'window', 'pulse', 'mountain', 'maze']),
+  posterUrl: z.string().url().nullable().optional(),
+  source: z.enum(['fixture', 'tmdb']).optional(),
+  sourceUrl: z.string().url().optional(),
+  fetchedAt: z.string().datetime().optional(),
+  metadataComplete: z.boolean().optional(),
 });
 export type Media = z.infer<typeof mediaSchema>;
 
@@ -68,6 +74,8 @@ export const librarySchema = z.object({
   logs: z.array(logSchema),
   comparisons: z.array(comparisonSchema),
   watchlist: z.array(watchlistSchema),
+  // Backward-compatible preview metadata, independent of eventual production catalog tables.
+  catalogEntries: z.array(mediaSchema).default([]),
 });
 export type Library = z.infer<typeof librarySchema>;
 

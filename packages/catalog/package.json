@@ -1,16 +1,14 @@
 {
-  "name": "@seen/contracts",
+  "name": "@seen/catalog",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": {
-    ".": "./src/index.ts",
-    "./catalog": "./src/catalog.ts"
-  },
+  "exports": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@seen/contracts": "workspace:*",
     "zod": "4.6.5"
   }
 }

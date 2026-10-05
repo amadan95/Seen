@@ -255,6 +255,7 @@ export function sampleLibrary(): Library {
         outcome: left === a ? 'a_wins' : 'b_wins',
       };
     }),
+    catalogEntries: [],
     watchlist: ['moon', 'grand-budapest', 'bear'].map((mediaId, i) => ({
       mediaId,
       addedAt: `2026-09-${20 + i}T12:00:00.000Z`,
