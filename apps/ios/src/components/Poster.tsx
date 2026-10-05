@@ -5,9 +5,47 @@ import { router } from 'expo-router';
 import type { Media, RankItem } from '@seen/contracts';
 import { colors } from '../design/tokens';
 import { Body, Badge, s } from './ui';
+import { WatchlistRibbon } from './WatchlistRibbon';
 
-/** Original abstract poster geometry for fixtures; no third-party artwork or provider calls. */
 export function Poster({
+  media,
+  width = 144,
+  compact = false,
+  onPress,
+  accessibilityLabel,
+  disabled = false,
+}: {
+  media: Media;
+  width?: number;
+  compact?: boolean;
+  onPress?: () => void;
+  accessibilityLabel?: string;
+  disabled?: boolean;
+}) {
+  const artwork = <PosterArtwork media={media} width={width} compact={compact} />;
+  return (
+    <View style={{ width, height: width * 1.5 }}>
+      {onPress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel ?? `Open ${media.title}`}
+          accessibilityState={{ disabled }}
+          disabled={disabled}
+          onPress={onPress}
+          style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+        >
+          {artwork}
+        </Pressable>
+      ) : (
+        artwork
+      )}
+      <WatchlistRibbon media={media} compact={compact || width < 80} />
+    </View>
+  );
+}
+
+/** Original abstract poster geometry for fixtures; real artwork uses the catalog URL. */
+function PosterArtwork({
   media,
   width = 144,
   compact = false,
@@ -150,21 +188,31 @@ export function PosterTile({
   reason?: string;
   width?: number;
 }) {
+  const open = () => router.push({ pathname: '/media/[id]', params: { id: media.id } });
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${media.title}, ${media.kind === 'movie' ? 'movie' : 'TV show'}, ${media.year ?? 'year unknown'}. ${reason ?? ''}`}
-      onPress={() => router.push({ pathname: '/media/[id]', params: { id: media.id } })}
-      style={{ width, gap: 5 }}
-    >
-      <Poster media={media} width={width} />
-      <Body style={{ fontSize: 15, fontWeight: '600', lineHeight: 21 }}>{media.title}</Body>
-      {reason && (
-        <Body muted style={{ fontSize: 12, lineHeight: 18 }}>
-          {reason}
-        </Body>
-      )}
-    </Pressable>
+    <View style={{ width, gap: 5 }}>
+      <Poster
+        media={media}
+        width={width}
+        onPress={open}
+        accessibilityLabel={`${media.title}, ${media.kind === 'movie' ? 'movie' : 'TV show'}, ${media.year ?? 'year unknown'}. ${reason ?? ''}`}
+      />
+      <Pressable
+        onPress={open}
+        accessible={false}
+        focusable={false}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={{ gap: 5, minHeight: 44 }}
+      >
+        <Body style={{ fontSize: 15, fontWeight: '600', lineHeight: 21 }}>{media.title}</Body>
+        {reason && (
+          <Body muted style={{ fontSize: 12, lineHeight: 18 }}>
+            {reason}
+          </Body>
+        )}
+      </Pressable>
+    </View>
   );
 }
 export function MediaRow({
@@ -176,26 +224,30 @@ export function MediaRow({
   rank?: RankItem;
   trailing?: React.ReactNode;
 }) {
+  const open = () => router.push({ pathname: '/media/[id]', params: { id: media.id } });
+  const label = `${media.title}, ${media.year ?? 'year unknown'}${rank?.position ? `, position ${rank.position}, your rank score ${rank.rankScore} out of 10, ${rank.evidence}` : ''}`;
   return (
     <View style={ps.row}>
       {rank?.position !== undefined && rank.position !== null && (
         <Text style={ps.ordinal}>{rank.position}</Text>
       )}
-      <Pressable
-        onPress={() => router.push({ pathname: '/media/[id]', params: { id: media.id } })}
-        accessibilityRole="button"
-        accessibilityLabel={`${media.title}, ${media.year ?? 'year unknown'}${rank?.position ? `, position ${rank.position}, your rank score ${rank.rankScore} out of 10, ${rank.evidence}` : ''}`}
-        style={[s.row, { flex: 1 }]}
-      >
-        <Poster media={media} width={52} compact />
-        <View style={{ flex: 1, gap: 3 }}>
+      <View style={[s.row, { flex: 1 }]}>
+        <Poster media={media} width={52} compact onPress={open} accessibilityLabel={label} />
+        <Pressable
+          onPress={open}
+          accessible={false}
+          focusable={false}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{ flex: 1, gap: 3, minHeight: 44, justifyContent: 'center' }}
+        >
           <Body style={{ fontWeight: '600', fontSize: 16, lineHeight: 23 }}>{media.title}</Body>
           <Body muted style={s.caption}>
             {media.year ?? 'Year unknown'} · {media.kind === 'movie' ? 'Movie' : 'TV'}
           </Body>
           {rank?.evidence === 'provisional' && <Badge label="Provisional" />}
-        </View>
-      </Pressable>
+        </Pressable>
+      </View>
       {rank && (
         <Text
           accessibilityLabel={

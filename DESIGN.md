@@ -9,3 +9,5 @@ Charcoal #0B0E10 background, #171C20 surfaces, #30363B dividers, #F5F1E8 primary
 Native tabs, navigation stacks and task sheets preserve iOS gestures. Posters are 2:3, rows use separators, rail labels explain actual sources. Score on right, ordinal on left, Provisional visible. Comparison posters have no scores. Forms use clear labels and private-note language.
 
 Preview artwork is original abstract cinematic geometry, authored for the local fixture catalog. It is not supplied movie artwork. Provider and friend rails stay absent until actual services are implemented.
+
+Every movie/TV poster carries a top-right watchlist ribbon using the existing Seen eye artwork. A plus means add; a check and ivory outline mean saved. Use a smaller ribbon on compact rows while keeping a minimum 44-point touch target. The ribbon acts independently from poster navigation and comparison choices; saved state follows the shared local library only after a durable write succeeds.

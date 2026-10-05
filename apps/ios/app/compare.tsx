@@ -62,20 +62,29 @@ export default function Compare() {
     posterWidth = stacked ? Math.min(width - 40, 240) : (width - 54) / 2;
   function choice(media: Media, value: ComparisonAnswer) {
     return (
-      <Pressable
-        key={media.id}
-        accessibilityRole="button"
-        accessibilityLabel={`I enjoyed ${media.title} more`}
-        disabled={busy}
-        onPress={() => void answer(value)}
-        style={{ width: posterWidth, gap: 10, alignItems: 'center' }}
-      >
-        <Poster media={media} width={posterWidth} />
-        <Body style={{ fontWeight: '600', textAlign: 'center' }}>{media.title}</Body>
-        <Body muted style={s.caption}>
-          {media.year ?? 'Year unknown'}
-        </Body>
-      </Pressable>
+      <View key={media.id} style={{ width: posterWidth, gap: 10, alignItems: 'center' }}>
+        <Poster
+          media={media}
+          width={posterWidth}
+          accessibilityLabel={`I enjoyed ${media.title} more`}
+          disabled={busy}
+          onPress={() => void answer(value)}
+        />
+        <Pressable
+          disabled={busy}
+          onPress={() => void answer(value)}
+          accessible={false}
+          focusable={false}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{ gap: 10, alignItems: 'center', width: posterWidth }}
+        >
+          <Body style={{ fontWeight: '600', textAlign: 'center' }}>{media.title}</Body>
+          <Body muted style={s.caption}>
+            {media.year ?? 'Year unknown'}
+          </Body>
+        </Pressable>
+      </View>
     );
   }
   const targetRank = params.target
