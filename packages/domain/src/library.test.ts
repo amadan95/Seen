@@ -8,6 +8,7 @@ import {
 import { catalog, sampleLibrary } from '@seen/fixtures';
 import {
   answerComparison,
+  confirmSeenEnough,
   emptyLibrary,
   filterCatalog,
   removeHistory,
@@ -136,5 +137,21 @@ describe('local preview library semantics', () => {
         payload: { present: true, priority: 3 },
       }).success,
     ).toBe(false);
+  });
+  it('confirms TV eligibility without adding a watch event or changing viewing status', () => {
+    const state = saveLog(
+      emptyLibrary(),
+      catalog,
+      { ...input, mediaId: 'bear', status: 'watching', seenEnough: false },
+      'bear',
+      now,
+    );
+    const confirmed = confirmSeenEnough(state, catalog, 'bear');
+    expect(confirmed.logs).toEqual(state.logs);
+    expect(confirmed.opinions[0]).toEqual({ ...state.opinions[0], seenEnough: true, revision: 2 });
+    expect(confirmed.opinions[0]?.status).toBe('watching');
+    expect(confirmSeenEnough(confirmed, catalog, 'bear')).toBe(confirmed);
+    expect(() => confirmSeenEnough(emptyLibrary(), catalog, 'bear')).toThrow();
+    expect(() => confirmSeenEnough(state, catalog, 'moon')).toThrow();
   });
 });

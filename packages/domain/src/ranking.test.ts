@@ -165,4 +165,95 @@ describe('regularized ranking and Rank Score', () => {
       true,
     );
   });
+  it('prefers a ranked anchor with matching genres for a newly logged title', () => {
+    const state = saveLog(
+      sampleLibrary(),
+      catalog,
+      {
+        mediaId: 'moon',
+        sentiment: 'liked',
+        status: null,
+        seenEnough: true,
+        watchedOn: null,
+        historical: true,
+        rewatch: false,
+        note: '',
+      },
+      'moon-log',
+      '2026-10-04T12:00:00.000Z',
+    );
+    const pair = pickComparison(catalog, state, 'movie', new Set(), 'moon');
+    expect(pair?.map((media) => media.id)).toEqual(['moon', 'arrival']);
+    const reversed = pickComparison([...catalog].reverse(), state, 'movie', new Set(), 'moon');
+    expect(reversed).toEqual(pair);
+  });
+  it('keeps a selected title unscored through four skipped pairs, then places it from evidence', () => {
+    let state = saveLog(
+      sampleLibrary(),
+      catalog,
+      {
+        mediaId: 'moon',
+        sentiment: 'fine',
+        status: null,
+        seenEnough: true,
+        watchedOn: null,
+        historical: true,
+        rewatch: false,
+        note: '',
+      },
+      'moon-log',
+      '2026-10-04T12:00:00.000Z',
+    );
+    const excluded = new Set<string>();
+    for (let step = 0; step < 4; step++) {
+      const pair = pickComparison(catalog, state, 'movie', excluded, 'moon')!;
+      expect(pair[0].id).toBe('moon');
+      state = answerComparison(
+        state,
+        catalog,
+        pair[0].id,
+        pair[1].id,
+        step % 2 ? 'undecided' : 'skip',
+        `skip-${step}`,
+      );
+      excluded.add(
+        pair
+          .map((media) => media.id)
+          .sort()
+          .join('|'),
+      );
+      expect(
+        buildSnapshot(catalog, state, 'movie').items.find((item) => item.mediaId === 'moon')
+          ?.rankScore,
+      ).toBeNull();
+    }
+    const pair = pickComparison(catalog, state, 'movie', excluded, 'moon')!;
+    state = answerComparison(state, catalog, pair[0].id, pair[1].id, 'similar', 'place');
+    const placed = buildSnapshot(catalog, state, 'movie').items.find(
+      (item) => item.mediaId === 'moon',
+    )!;
+    expect(placed.rankScore).not.toBeNull();
+    expect(placed.position).toBeGreaterThan(0);
+    expect(placed.evidence).toBe('provisional');
+  });
+  it('never substitutes another focus when the selected TV title is ineligible', () => {
+    const state = saveLog(
+      sampleLibrary(),
+      catalog,
+      {
+        mediaId: 'bear',
+        sentiment: 'disliked',
+        status: 'watching',
+        seenEnough: false,
+        watchedOn: null,
+        historical: true,
+        rewatch: false,
+        note: '',
+      },
+      'bear-log',
+      '2026-10-04T12:00:00.000Z',
+    );
+    expect(pickComparison(catalog, state, 'tv', new Set(), 'bear')).toBeNull();
+    expect(pickComparison(catalog, state, 'movie', new Set(), 'missing')).toBeNull();
+  });
 });

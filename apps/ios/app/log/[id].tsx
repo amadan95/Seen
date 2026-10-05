@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Switch, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -37,14 +37,16 @@ export default function LogScreen() {
   const [saved, setSaved] = useState(false),
     [error, setError] = useState<string | null>(null),
     [undo, setUndo] = useState<{ before: Library; revision: number } | null>(null);
+  const saving = useRef(false);
   if (!media)
     return (
       <Screen>
         <EmptyState title="Title unavailable" message="Go back and choose a title from Discover." />
       </Screen>
     );
-  async function save(value: Sentiment | null) {
-    if (!media || busy) return;
+  async function save(value: Sentiment | null, compare = false) {
+    if (!media || busy || saving.current) return;
+    saving.current = true;
     setError(null);
     let before: Library | undefined;
     try {
@@ -73,8 +75,15 @@ export default function LogScreen() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
         () => undefined,
       );
+      if (compare && value)
+        router.replace({
+          pathname: '/compare',
+          params: { kind: media.kind, target: id, mode: 'placement' },
+        });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save. Try again.');
+    } finally {
+      saving.current = false;
     }
   }
   async function undoSave() {
@@ -157,7 +166,7 @@ export default function LogScreen() {
               label={value === 'liked' ? 'Liked' : value === 'fine' ? 'Fine' : 'Disliked'}
               secondary={sentiment !== value}
               disabled={busy}
-              onPress={() => void save(value)}
+              onPress={() => void save(value, true)}
             />
           </View>
         ))}
@@ -258,15 +267,18 @@ export default function LogScreen() {
           label="Place in ranking"
           icon="rank"
           onPress={() =>
-            router.replace({ pathname: '/compare', params: { kind: media.kind, target: id } })
+            router.replace({
+              pathname: '/compare',
+              params: { kind: media.kind, target: id, mode: 'placement' },
+            })
           }
         />
       )}
       <Button label="Done" secondary onPress={() => router.back()} />
       <Body muted style={[s.caption, { textAlign: 'center' }]}>
         {saved
-          ? 'Comparisons are optional. Your log is already saved.'
-          : 'Comparisons are optional. Tap a sentiment to save your watch.'}
+          ? 'Your watch is saved. Comparisons place it in your ranking.'
+          : 'Choose a sentiment to save your watch and start comparing.'}
       </Body>
     </Screen>
   );

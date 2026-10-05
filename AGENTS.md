@@ -6,6 +6,6 @@ Use the pnpm workspace and strict TypeScript. Routes compose UI; packages/contra
 
 This first commit is a local fixture preview plus Phase 0 scaffolding. Do not claim tasks 02–22 complete or silently treat the preview store as the production service. Continue the backlog sequentially with migrations, actor authorization, RLS and server-authoritative ranking. No credentials in the client. No speculative social activity, percentages or availability claims.
 
-Keep logging optional-to-rank, separate movie/TV fits, TV eligibility explicit, unknown dates/runtime honest, private notes local/owner-only. Sentiment alone does not generate scores; score filters do not refit. Preserve pending data before reporting save success. Record actual tests and remaining owner/tooling gates in a handoff.
+Save sentiment durably before automatically opening targeted comparisons. Continue placement until a score exists; allow finishing later when no useful pair remains. Keep separate movie/TV fits, TV eligibility explicit, unknown dates/runtime honest, private notes local/owner-only. Sentiment alone does not generate scores; score filters do not refit. Preserve pending data before reporting save success. Record actual tests and remaining owner/tooling gates in a handoff.
 
 Never deploy, submit to Apple, provision paid vendors or purchase services without user authorization. The requested initial GitHub push is authorized.

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
 import { FlatList, View } from 'react-native';
 import type { MediaKind } from '@seen/contracts';
 import { useLibrary } from '../../src/local/LibraryProvider';
@@ -17,11 +17,23 @@ import {
 import { MediaRow } from '../../src/components/Poster';
 
 export default function Rank() {
+  const params = useLocalSearchParams<{
+    kind?: string;
+    placed?: string;
+    placementRevision?: string;
+  }>();
   const { snapshot, mediaById } = useLibrary(),
     [kind, setKind] = useState<MediaKind>('movie'),
     [limit, setLimit] = useState('10'),
     [genre, setGenre] = useState<string | null>(null),
     [about, setAbout] = useState(false);
+  useEffect(() => {
+    if (params.kind) setKind(params.kind === 'tv' ? 'tv' : 'movie');
+    if (params.placed) {
+      setGenre(null);
+      setLimit('all');
+    }
+  }, [params.kind, params.placed, params.placementRevision]);
   const ranks = snapshot(kind),
     placed = ranks.items.filter((i) => i.position !== null),
     unplaced = ranks.items.filter((i) => i.position === null);
@@ -29,6 +41,9 @@ export default function Rank() {
     (i) =>
       (!genre || mediaById.get(i.mediaId)!.genres.includes(genre)) &&
       (limit === 'all' || i.position! <= Number(limit)),
+  );
+  const added = ranks.items.find(
+    (item) => item.mediaId === params.placed && item.rankScore !== null,
   );
   return (
     <Screen scroll={false}>
@@ -39,6 +54,13 @@ export default function Rank() {
         ListHeaderComponent={
           <View style={{ gap: 16 }}>
             <Heading large>Your rankings</Heading>
+            {added && (
+              <Body accessibilityLiveRegion="polite">
+                {mediaById.get(added.mediaId)?.title} is ranked · {added.rankScore?.toFixed(1)} / 10
+                · #{added.position}
+                {added.evidence === 'provisional' ? ' · Provisional' : ''}
+              </Body>
+            )}
             <Segments
               options={[
                 { value: 'movie', label: 'Movies' },

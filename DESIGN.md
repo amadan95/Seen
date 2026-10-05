@@ -11,3 +11,5 @@ Native tabs, navigation stacks and task sheets preserve iOS gestures. Posters ar
 Preview artwork is original abstract cinematic geometry, authored for the local fixture catalog. It is not supplied movie artwork. Provider and friend rails stay absent until actual services are implemented.
 
 Movie and TV posters focus on artwork and opening the title. Keep watchlist actions on detail pages, where their saved state and context are clear.
+
+Selecting Liked, Fine or Disliked saves the watch and opens a comparison sheet focused on that title. Skip and Can’t decide continue placement without a question cap. A scored answer opens the matching ranking, clears genre/Top 10 filters, and announces the saved score and position. Prefer ranked anchors sharing genres. TV asks for explicit seen-enough confirmation inside the sheet. Empty pools explain that the watch is saved and need another eligible title; Finish later remains available.

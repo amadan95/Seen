@@ -41,7 +41,7 @@ The value proposition is **“Remember what you watched. Discover what you'll lo
 
 Primary loops:
 
-1. **Memory:** search a title → log sentiment → optionally compare → revisit a personal ranking.
+1. **Memory:** search a title → log sentiment → automatically compare → revisit a personal ranking.
 2. **Discovery:** see a relevant suggestion → understand why → save it or open availability → watch → log feedback.
 3. **Social:** follow someone → discover a title through their visible activity → save/watch → eventually send a recommendation back.
 
@@ -52,7 +52,7 @@ Product limitations to acknowledge: Seen cannot observe Netflix playback, know t
 | Principle | Product rule | Acceptance signal |
 |---|---|---|
 | Fast logging | On detail, one tap opens the sheet and one sentiment tap saves | Median detail-to-save under 5 seconds in usability testing |
-| Ranking is optional | Save the log before suggesting comparisons; always offer Done | A skipped comparison cannot undo or block a log |
+| Automatic placement | Save the log before opening comparisons; offer Finish later | A skipped comparison cannot undo or block a log |
 | Honest uncertainty | Label inferred placements provisional; suppress unsupported percentages | No fabricated “92% match” or “87% similar” |
 | Progressive setup | Taste seed, genre selection and friends can all be skipped | User reaches Home without completing a questionnaire |
 | Quiet social | Publish meaningful, permitted activity; collapse batch onboarding | No public post per comparison or imported historical title |
@@ -81,7 +81,7 @@ Welcome shows one sentence and a three-step illustration: Track, Rank, Discover.
 
 ### D2. Log something just watched
 
-Search or open a poster → Log → choose Liked/Fine/Disliked → durable save and success feedback → optional “Place it in your ranking” → answer up to three comparisons → Done. Expand Details for watched date, historical flag, rewatch, private note and visibility. Users can undo the saved log or change sentiment later.
+Search or open a poster → Log → choose Liked/Fine/Disliked → durable save and success feedback → automatically open targeted comparisons → continue until evidence assigns a provisional score → show the title in its ranking. Skip and Can’t decide continue the placement session. If no useful pairs remain, offer retry or Finish later without inventing a score. Expand Details for watched date, historical flag, rewatch, private note and visibility. Users can undo the saved log or change sentiment later.
 
 ### D3. Log a TV show
 
@@ -293,7 +293,7 @@ If a fit fails, is nonfinite or does not converge, retain the previous complete 
 
 ### G4. Comparison selection
 
-After logging, suggest up to three comparisons, with Done available after each. This is a session budget, not a promise of exact placement. Three answers cannot uniquely locate a new title among 1,000 choices.
+After any Liked/Fine/Disliked choice, automatically open a placement session for that title. Persist the log first. Placement has no three-question cap: skips and undecided answers continue until a scored answer is saved, then open the appropriate ranking. Prefer already ranked titles sharing genres, then nearby personal scores; keep formats separate. General refinement sessions retain a three-question budget. A provisional score is not a promise of exact placement among all titles. With fewer than two eligible titles, keep the watch saved and unscored, and explain how to create another pair. TV sentiment opens the modal even before eligibility confirmation; ask for explicit seen-enough confirmation there.
 
 New title placement starts near the midpoint of its sentiment neighborhood in the current placed list. Following a clear preference, narrow the session's candidate interval and ask another midpoint. For a similar answer, contradiction or stale bracket, switch to nearby candidates. If no placed items exist, compare two eligible unplaced titles of the same format. Rebuild brackets on session resume.
 

@@ -90,6 +90,21 @@ export function saveLog(
     watchlist: state.watchlist.filter((w) => w.mediaId !== media.id),
   };
 }
+export function confirmSeenEnough(state: Library, catalog: Media[], mediaId: string): Library {
+  const media = catalog.find((item) => item.id === mediaId);
+  const opinion = state.opinions.find((item) => item.mediaId === mediaId);
+  if (media?.kind !== 'tv' || !opinion?.sentiment)
+    throw new Error('Save a sentiment for this show before ranking it');
+  if (opinion.seenEnough) return state;
+  return {
+    ...state,
+    revision: state.revision + 1,
+    opinions: state.opinions.map((item) =>
+      item.mediaId === mediaId ? { ...item, seenEnough: true, revision: item.revision + 1 } : item,
+    ),
+  };
+}
+
 export function setWatchlist(
   state: Library,
   mediaId: string,

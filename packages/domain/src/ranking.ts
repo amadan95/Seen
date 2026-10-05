@@ -215,6 +215,7 @@ export function pickComparison(
   const snapshot = buildSnapshot(catalog, library, kind);
   const lookup = new Map(catalog.map((m) => [m.id, m]));
   const eligible = snapshot.items;
+  if (target && !eligible.some((item) => item.mediaId === target)) return null;
   const active = new Set(
     activeComparisons(library.opinions, library.comparisons).map((c) =>
       [c.a, c.b].sort().join('|'),
@@ -225,27 +226,37 @@ export function pickComparison(
     eligible.find((i) => i.position === null) ??
     [...eligible].sort((a, b) => a.opponents - b.opponents)[0];
   if (!focus) return null;
-  const candidates = eligible.filter(
-    (i) =>
-      i.mediaId !== focus.mediaId &&
-      !excluded.has([i.mediaId, focus.mediaId].sort().join('|')) &&
-      !active.has([i.mediaId, focus.mediaId].sort().join('|')),
-  );
-  candidates.sort((a, b) => {
-    const gap = (x: typeof a) => Math.abs((x.rankScore ?? 5) - (focus.rankScore ?? 5));
-    return gap(a) - gap(b) || a.opponents - b.opponents || a.mediaId.localeCompare(b.mediaId);
-  });
-  const opponent = candidates[0];
+  function candidatesFor(focus: (typeof eligible)[number]) {
+    const candidates = eligible.filter(
+      (i) =>
+        i.mediaId !== focus.mediaId &&
+        !excluded.has([i.mediaId, focus.mediaId].sort().join('|')) &&
+        !active.has([i.mediaId, focus.mediaId].sort().join('|')),
+    );
+    candidates.sort((a, b) => {
+      const sentiment = library.opinions.find((item) => item.mediaId === focus.mediaId)?.sentiment;
+      const expected =
+        focus.rankScore ?? rankScore(sentiment === 'liked' ? 1 : sentiment === 'disliked' ? -1 : 0);
+      const genres = new Set(lookup.get(focus.mediaId)!.genres);
+      const shared = (item: typeof a) =>
+        lookup.get(item.mediaId)!.genres.filter((genre) => genres.has(genre)).length;
+      const gap = (item: typeof a) => Math.abs((item.rankScore ?? expected) - expected);
+      return (
+        Number(b.rankScore !== null) - Number(a.rankScore !== null) ||
+        shared(b) - shared(a) ||
+        gap(a) - gap(b) ||
+        a.opponents - b.opponents ||
+        a.mediaId.localeCompare(b.mediaId)
+      );
+    });
+    return candidates;
+  }
+  const opponent = candidatesFor(focus)[0];
   if (opponent) return [lookup.get(focus.mediaId)!, lookup.get(opponent.mediaId)!];
   if (target) return null;
   for (const item of eligible) {
     if (item.mediaId === focus.mediaId) continue;
-    const other = eligible.find(
-      (i) =>
-        i.mediaId !== item.mediaId &&
-        !excluded.has([i.mediaId, item.mediaId].sort().join('|')) &&
-        !active.has([i.mediaId, item.mediaId].sort().join('|')),
-    );
+    const other = candidatesFor(item)[0];
     if (other) return [lookup.get(item.mediaId)!, lookup.get(other.mediaId)!];
   }
   return null;

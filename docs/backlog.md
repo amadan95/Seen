@@ -72,7 +72,7 @@ Run one task at a time unless accepted interfaces and file ownership make parall
 
 **Dependencies:** 05–06. **Read:** D2–D3, F4, O, P5/P9.
 
-**Prompt:** Implement the fast sentiment sheet, optional details, TV status/eligibility controls, edit latest log vs explicit rewatch, save/undo feedback and paginated owner library. Save before suggesting ranking. Wire current personal sentiment/status into detail and own profile. Private notes never appear in social-ready DTOs.
+**Prompt:** Implement the fast sentiment sheet, optional details, TV status/eligibility controls, edit latest log vs explicit rewatch, save/undo feedback and paginated owner library. Save before automatically opening targeted placement for each sentiment choice. Wire current personal sentiment/status into detail and own profile. Private notes never appear in social-ready DTOs.
 
 **Acceptance:** default movie flow needs one tap to open and one sentiment tap to save; dismissal/comparison skip cannot undo a successful log; visible pending/error states; date and rewatch affordances are distinct; cached user state is invalidated correctly.
 
@@ -122,7 +122,7 @@ Run one task at a time unless accepted interfaces and file ownership make parall
 
 **Dependencies:** 07, 11. **Read:** D5, G, P6.
 
-**Prompt:** Add Movies/TV rank views, Top limits, genre/release-year filters, Unplaced section and comparison session UI. Show left ordinal and right-aligned one-decimal Rank Score with column legend; add Your score /10, position and Provisional status to media detail and profile previews. Unplaced displays an em dash/Not yet scored. Hide scores during head-to-head questions; show only confirmed resulting snapshot scores. All answers have accessible buttons; Done is always available. Log completion offers optional placement. Show pending snapshot/evidence status, conflict refresh and valid undo. Do not expose latent scores or precise confidence percentages.
+**Prompt:** Add Movies/TV rank views, Top limits, genre/release-year filters, Unplaced section and comparison session UI. Show left ordinal and right-aligned one-decimal Rank Score with column legend; add Your score /10, position and Provisional status to media detail and profile previews. Unplaced displays an em dash/Not yet scored. Hide scores during head-to-head questions; show only confirmed resulting snapshot scores. All answers have accessible buttons; Finish later is available. Sentiment completion automatically opens targeted placement; skips continue without the general refinement cap until a score is assigned. Prefer already ranked titles sharing genres, then nearby personal scores. Show pending snapshot/evidence status, conflict refresh and valid undo. Do not expose latent scores or precise confidence percentages.
 
 **Acceptance:** max-three default is escapable after every answer; question uses seen titles of same format; current list/score comes from one complete server snapshot; assigned numbers agree across surfaces and stay unchanged by filters; no sentiment-only fabricated score; no score shown inside comparisons; large text can stack comparisons and read the score column.
 
