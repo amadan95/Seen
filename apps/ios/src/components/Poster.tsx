@@ -48,13 +48,14 @@ function PosterArtwork({
   compact?: boolean;
 }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  if (media.posterUrl && failedUrl !== media.posterUrl)
+  const imageKey = `${media.posterUrl}:${media.fetchedAt ?? ''}`;
+  if (media.posterUrl && failedUrl !== imageKey)
     return (
       <Image
         source={{ uri: media.posterUrl }}
         resizeMode="cover"
         accessible={false}
-        onError={() => setFailedUrl(media.posterUrl ?? null)}
+        onError={() => setFailedUrl(imageKey)}
         style={{ width, height: width * 1.5, borderRadius: 8, backgroundColor: colors.surface }}
       />
     );

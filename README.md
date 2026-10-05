@@ -4,7 +4,7 @@ An iPhone-first movie and TV memory: **find → log → compare → choose the n
 
 This development build contains an Expo/React Native app, five functional tabs, a local TMDB search/detail bridge, durable local logging and watchlist, a Bradley–Terry ranking preview with automatic Rank Scores, shared contracts, owner-only Supabase identity/settings primitives, and CI. It follows the supplied [spec](docs/spec.md), [backlog](docs/backlog.md), and [v2 wireframes](docs/reference).
 
-**This is a local development preview, not a production backend or public-release MVP.** The optional sample catalog/history are illustrative. With your local TMDB credential, Discover can also browse real titles and artwork. Live auth, social, server rankings, offline synchronization, and account deletion are not connected. No credentials are needed for the sample mode.
+**This is a local development preview, not a production backend or public-release MVP.** The optional sample catalog/history are illustrative. With your local TMDB credential, Home, Discover, rankings, history and watchlists use real artwork. Detail pages load runtime, genres, synopsis, credits, trailers, TV counts and US viewing options. Live auth, social, server rankings, offline synchronization, and account deletion are not connected. No credentials are needed for the sample mode.
 
 ## Run
 
@@ -31,7 +31,7 @@ pnpm dev:simulator
 
 Discover defaults to **Live catalog** when configured and also offers **Sample catalog**. Live search is debounced, paginated, adult-excluded and separated by format; hard runtime filters hydrate movie details and exclude unknown durations. Detail loads real metadata/posters; log/watchlist/compare work with retained title metadata after an app restart. Keep both sample and live library data local; there is no automatic migration to production.
 
-The bridge binds only to `127.0.0.1:8787`, for the iOS Simulator and local web preview. It is disabled in release bundles and must not be deployed or exposed on a network. A physical iPhone needs a separately configured authorized backend. `.seen-dev/identities.json` persists only namespaced supplier-to-UUID mappings; do not delete it while using a saved local library. Upstream caches are bounded and held in memory, with stale data explicitly labeled. Production catalog tables, distributed limits/cache expiry, people/credits/provider services and supplier launch approvals remain task 04 onward. See [the continuation handoff](docs/handoffs/local-catalog-native.md).
+The bridge binds only to `127.0.0.1:8787`, for the iOS Simulator and local web preview. It is disabled in release bundles and must not be deployed or exposed on a network. A physical iPhone needs a separately configured authorized backend. `.seen-dev/identities.json` persists only namespaced supplier-to-UUID mappings; do not delete it while using a saved local library. Upstream caches are bounded and held in memory, with stale data explicitly labeled. Production catalog tables, distributed limits/cache expiry, production people/catalog/provider services and supplier launch approvals remain task 04 onward. Local detail hydration includes credits/videos and JustWatch-powered US provider summaries, with attribution, checked time, cache labels, and safe source links. Existing sample title IDs stay intact while their artwork and metadata refresh. See [the continuation handoff](docs/handoffs/local-catalog-native.md).
 
 For the actual iOS development build, install Xcode 26.4+, select its command-line tools, then:
 
@@ -81,3 +81,5 @@ Local saves are acknowledged after SQLite commits on native or localStorage succ
 Next: task 03 native authentication once a local or hosted Supabase runtime is configured; then complete task 04's production catalog persistence and authorized services. Physical-device/staging acceptance, supplier permissions, Apple signing and Expo ownership remain configuration gates. Scene support is enabled for builds made with Xcode 27; native directories remain generated from configuration.
 
 Sentiment logging automatically opens title placement. Ranked titles with shared genres are preferred as comparison anchors; skips continue until an answer supplies a provisional score, then the matching ranking opens. TV requires explicit seen-enough confirmation. A first title remains saved and unscored until another eligible title exists.
+
+See [live posters and availability validation](docs/handoffs/live-posters-availability.md) for coverage, caching behavior and remaining limits.

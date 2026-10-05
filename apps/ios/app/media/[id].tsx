@@ -15,6 +15,7 @@ import {
   Section,
   s,
 } from '../../src/components/ui';
+import { Availability } from '../../src/components/Availability';
 import { Poster } from '../../src/components/Poster';
 import { colors } from '../../src/design/tokens';
 import { catalogUrl, loadCatalogDetail } from '../../src/features/catalog/client';
@@ -28,7 +29,7 @@ export default function MediaDetail() {
     [detailError, setDetailError] = useState<string | null>(null),
     [retry, setRetry] = useState(0),
     [stale, setStale] = useState(false);
-  const live = media?.source === 'tmdb';
+  const live = media?.source === 'tmdb' || Boolean(catalogUrl && media && media.id !== 'unknown');
   useEffect(() => {
     if (!live || !catalogUrl) return;
     const abort = new AbortController();
@@ -90,7 +91,9 @@ export default function MediaDetail() {
                 ? `${media.runtimeMinutes} min`
                 : 'Runtime unknown'
               : media.episodeMinutes
-                ? `About ${media.episodeMinutes} min per episode`
+                ? media.episodeDurationSource === 'latest'
+                  ? `Latest episode: ${media.episodeMinutes} min`
+                  : `About ${media.episodeMinutes} min per episode`
                 : 'Episode duration unknown'}
           </Body>
           <Body muted style={s.caption}>
@@ -154,15 +157,78 @@ export default function MediaDetail() {
       <InlineError message={error} />
       <PreviewNotice />
       <Section title="Where to watch">
-        <Body muted>Availability is not connected in this preview.</Body>
-        <Body muted style={s.caption}>
-          The live service will show regional subscription, rent, and buy offers with source and
-          freshness information. No streaming entitlement is implied.
-        </Body>
+        {live ? (
+          <Availability data={media.availability} loading={loading} />
+        ) : (
+          <Body muted>Connect the live catalog to check US viewing options.</Body>
+        )}
+        {live &&
+          !loading &&
+          (!media.availability || media.availability.status === 'unavailable') && (
+            <Button
+              label="Retry viewing options"
+              secondary
+              onPress={() => setRetry((value) => value + 1)}
+            />
+          )}
       </Section>
       <Section title="Overview">
+        {media.tagline ? <Body style={{ fontWeight: '600' }}>{media.tagline}</Body> : null}
         <Body muted>{media.synopsis || 'No overview is available for this title.'}</Body>
       </Section>
+      {media.metadataComplete && (
+        <Section title="Title details">
+          {media.releaseDate && (
+            <Body muted>
+              {media.kind === 'movie' ? 'Released' : 'First aired'}: {media.releaseDate}
+            </Body>
+          )}
+          {media.originalLanguage && (
+            <Body muted>Original language: {media.originalLanguage.toUpperCase()}</Body>
+          )}
+          {media.catalogStatus && (
+            <Body muted>
+              {media.kind === 'tv' ? 'Series' : 'Release'} status: {media.catalogStatus}
+            </Body>
+          )}
+          {media.seasons !== null && media.seasons !== undefined && (
+            <Body muted>
+              {media.seasons} seasons · {media.episodes ?? 'Unknown'} episodes in the catalog
+            </Body>
+          )}
+          {Boolean(media.directors?.length) && (
+            <Body muted>Directed by {media.directors!.join(', ')}</Body>
+          )}
+          {Boolean(media.creators?.length) && (
+            <Body muted>Created by {media.creators!.join(', ')}</Body>
+          )}
+          {media.trailerUrl && (
+            <Button
+              label="Watch official trailer"
+              secondary
+              onPress={() =>
+                void Linking.openURL(media.trailerUrl!).catch(() =>
+                  setError('The trailer could not be opened.'),
+                )
+              }
+            />
+          )}
+        </Section>
+      )}
+      {Boolean(media.cast?.length) && (
+        <Section title="Cast">
+          {media.cast!.map((person, index) => (
+            <View key={`${person.name}-${index}`} style={{ gap: 2 }}>
+              <Body>{person.name}</Body>
+              {person.character && (
+                <Body muted style={s.caption}>
+                  {person.character}
+                </Body>
+              )}
+            </View>
+          ))}
+        </Section>
+      )}
       {opinion && (
         <Section title="Your watch">
           <Body>

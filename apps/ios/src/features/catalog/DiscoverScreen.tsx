@@ -22,7 +22,7 @@ import { catalogUrl } from './client';
 import { useCatalogSearch } from './useCatalogSearch';
 
 export function DiscoverScreen({ search = false }: { search?: boolean }) {
-  const { library } = useLibrary(),
+  const { library, mediaById } = useLibrary(),
     { width, fontScale } = useWindowDimensions();
   const [query, setQuery] = useState(''),
     [kind, setKind] = useState<MediaKind | 'all'>('all'),
@@ -40,7 +40,13 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
   );
   const results = live
     ? (remote.page?.items ?? [])
-    : filterCatalog(catalog, { kind, maxRuntime: short ? 120 : null, genre }, query);
+    : filterCatalog(
+        catalog
+          .map((media) => mediaById.get(media.id) ?? media)
+          .filter((media) => !catalogUrl || media.id !== 'unknown'),
+        { kind, maxRuntime: short ? 120 : null, genre },
+        query,
+      );
   const columns = fontScale > 1.4 ? 1 : 2,
     tileWidth = (width - 40 - (columns - 1) * 14) / columns;
   return (
@@ -139,7 +145,7 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
         }
         renderItem={({ item }) => (
           <PosterTile
-            media={item}
+            media={mediaById.get(item.id) ?? item}
             reason={
               live
                 ? `${item.year ?? 'Year unknown'} · ${item.kind === 'movie' ? 'Movie' : 'TV show'}`

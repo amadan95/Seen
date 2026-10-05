@@ -1,0 +1,20 @@
+# Live posters, metadata and availability — 2026-10-04
+
+The user's request is implemented in the local TMDB-backed development preview. Existing real sample titles hydrate automatically at library startup, preserving local IDs, logs, sentiments, opinion revisions and comparison evidence. Referenced live UUID titles refresh too, and referenced hydrated metadata persists in SQLite/localStorage. Home, onboarding, comparison, ranks, history and watchlist share the enriched catalog; sample browsing uses enriched poster data. The artificial unknown-runtime fixture stays available in credential-free mode and is excluded from live recommendations/sample browsing.
+
+The local bridge adds `/catalog/preview`, with 15 explicit movie/TV supplier references and four concurrent detail requests. Partial upstream failure keeps saved catalog data and exposes a retry. `/media/:id` supports both preserved preview slugs and existing durable supplier UUID mappings. Supplier identities are not imported into production tables.
+
+Detail requests append credits, videos and watch/providers. Client contracts add release/first-air date, tagline, original language, catalog status, directors/creators, up to 12 cast credits, official YouTube trailer links, TV season/episode counts and episode-duration provenance. If typical episode runtime is missing, the latest episode's duration is explicitly labeled instead of implying an average. These fields remain optional for old libraries and missing supplier values remain unknown.
+
+Availability is US-only, sourced from JustWatch through TMDB, and grouped by subscription, free, ads, rent and buy. Each group preserves supplier names/logos, deduplicates within offer type, and shows attribution and checked time. A successful response with no US offers differs from failed/malformed availability data. Cached availability is labeled; detail retry preserves the saved watch. Viewing options link only to the supplier TMDB watch page, with safe HTTPS host/title validation supporting slugged URLs. No prices, entitlements, direct playback links or season-wide guarantees are invented.
+
+Sources: [TMDB movie provider reference](https://developer.themoviedb.org/reference/movie-watch-providers), [TV provider reference](https://developer.themoviedb.org/reference/tv-series-watch-providers), [append-to-response](https://developer.themoviedb.org/docs/append-to-response).
+
+Validation:
+
+- `pnpm check`: lint, strict workspace typecheck and 37 tests passed. New cases cover detailed metadata/official trailers, US-only offers and offer-type deduplication, unsafe viewing links, empty versus unavailable data, latest TV episode duration and stale cached availability.
+- iOS and web exports passed; native dependencies unchanged. Shared Edge bundle regenerated (no resulting bundle diff).
+- Live bridge returned all 15 real preview titles with posters, synopsis, genres, runtime, cast and US provider summaries. Every poster URL returned HTTP 200 with image/jpeg using HEAD requests; every title had a safe viewing-options link. Stalker (1979 movie) and The Office (2005 TV) search-to-detail checks preserved UUIDs and populated posters, cast and viewing offers.
+- Native iOS 27 dedicated Seen Comparison Preview inspected after restart: Home uses real posters, movie/TV ranking thumbnails load, The Grand Budapest Hotel shows rent/buy providers and logos plus source/credits/trailer, and The Bear shows subscription providers, logos and correctly labeled latest-episode duration. Existing sample ranking scores and TV Watching status survived hydration/restart.
+
+The API bridge is running at localhost:8787, Metro at localhost:8082, and the dedicated preview simulator is left on The Bear's live details. Credentials remain ignored and server-side. This does not complete hosted authorization, production catalog/cache/rights enforcement, account settings, remote sync, or release deployment. Actual supplier gaps may still produce an explicit missing-poster or unavailable-data state. Other countries, prices and licensed richer streaming feeds remain future work.

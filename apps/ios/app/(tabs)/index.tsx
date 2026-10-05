@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { sampleLibrary } from '@seen/fixtures';
 import { discoveryPicks } from '@seen/domain';
 import { useLibrary } from '../../src/local/LibraryProvider';
@@ -16,10 +16,22 @@ import {
   Section,
   s,
 } from '../../src/components/ui';
+import { catalogUrl } from '../../src/features/catalog/client';
+import { colors } from '../../src/design/tokens';
 import { MediaRow, Poster, PosterTile } from '../../src/components/Poster';
 
 export default function Home() {
-  const { library, mutate, snapshot, busy, catalog, mediaById } = useLibrary();
+  const {
+    library,
+    mutate,
+    snapshot,
+    busy,
+    catalog,
+    mediaById,
+    catalogLoading,
+    catalogError,
+    refreshCatalog,
+  } = useLibrary();
   const [error, setError] = useState<string | null>(null);
   function start(sample: boolean) {
     setError(null);
@@ -53,11 +65,14 @@ export default function Home() {
         <InlineError message={error} />
         <Body muted style={s.caption}>
           This first build is a private local preview. Sample history is illustrative. No account or
-          streaming connection is active.
+          streaming account is connected.
         </Body>
       </Screen>
     );
-  const picks = discoveryPicks(catalog, library),
+  const picks = discoveryPicks(
+      catalogUrl ? catalog.filter((media) => media.id !== 'unknown') : catalog,
+      library,
+    ),
     unplaced = snapshot('movie').items.filter((i) => i.position === null);
   const recent = [...library.logs].reverse().slice(0, 3);
   return (
@@ -76,6 +91,18 @@ export default function Home() {
       }
     >
       <PreviewNotice />
+      {catalogLoading && (
+        <ActivityIndicator
+          color={colors.accent}
+          accessibilityLabel="Loading posters and title details"
+        />
+      )}
+      {catalogError && (
+        <>
+          <InlineError message={catalogError} />
+          <Button label="Retry catalog" secondary onPress={refreshCatalog} />
+        </>
+      )}
       <Section
         title="Continue ranking"
         action={
@@ -121,7 +148,9 @@ export default function Home() {
         }
       >
         <Body muted style={s.caption}>
-          Ideas from your local catalog. Availability is not connected yet.
+          {catalogUrl
+            ? 'Picks from your library. Open a title for US viewing options.'
+            : 'Ideas from your sample catalog.'}
         </Body>
         <ScrollView
           horizontal

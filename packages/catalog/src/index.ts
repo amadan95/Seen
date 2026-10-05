@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { mediaSchema, type Media, type MediaKind } from '@seen/contracts';
+import { mediaSchema, type Media, type MediaKind, type Availability } from '@seen/contracts';
 import { catalogQuerySchema, type CatalogPage, type CatalogQuery } from '@seen/contracts/catalog';
 
 const itemSchema = z.object({
@@ -16,6 +16,54 @@ const itemSchema = z.object({
   genres: z.array(z.object({ id: z.number().int(), name: z.string() })).optional(),
   runtime: z.number().int().nonnegative().nullable().optional(),
   episode_run_time: z.array(z.number().int().nonnegative()).optional(),
+  last_episode_to_air: z
+    .object({ runtime: z.number().int().nonnegative().nullable().optional() })
+    .nullable()
+    .optional(),
+  tagline: z.string().nullable().optional(),
+  original_language: z.string().optional(),
+  status: z.string().optional(),
+  number_of_seasons: z.number().int().nonnegative().optional(),
+  number_of_episodes: z.number().int().nonnegative().optional(),
+  created_by: z.array(z.object({ name: z.string() })).optional(),
+  credits: z
+    .object({
+      cast: z.array(z.object({ name: z.string(), character: z.string().optional() })).optional(),
+      crew: z.array(z.object({ name: z.string(), job: z.string() })).optional(),
+    })
+    .optional(),
+  videos: z
+    .object({
+      results: z.array(
+        z.object({
+          key: z.string(),
+          site: z.string(),
+          type: z.string(),
+          official: z.boolean().optional(),
+        }),
+      ),
+    })
+    .optional(),
+  'watch/providers': z.unknown().optional(),
+});
+const providerSchema = z.object({
+  provider_id: z.number().int().positive(),
+  provider_name: z.string().min(1),
+  logo_path: z.string().nullable().optional(),
+  display_priority: z.number().optional(),
+});
+const providersSchema = z.object({
+  results: z.record(
+    z.string(),
+    z.object({
+      link: z.string().optional(),
+      flatrate: z.array(providerSchema).optional(),
+      rent: z.array(providerSchema).optional(),
+      buy: z.array(providerSchema).optional(),
+      free: z.array(providerSchema).optional(),
+      ads: z.array(providerSchema).optional(),
+    }),
+  ),
 });
 const pageSchema = z.object({
   results: z.array(z.unknown()).max(100),
@@ -229,7 +277,10 @@ export class TmdbCatalog {
       title: (kind === 'movie' ? raw.title : raw.name)?.trim() || 'Untitled',
       year: parsedYear,
       runtimeMinutes: kind === 'movie' && raw.runtime ? raw.runtime : null,
-      episodeMinutes: kind === 'tv' ? (raw.episode_run_time?.find((n) => n > 0) ?? null) : null,
+      episodeMinutes:
+        kind === 'tv'
+          ? (raw.episode_run_time?.find((n) => n > 0) ?? (raw.last_episode_to_air?.runtime || null))
+          : null,
       genres,
       synopsis: raw.overview ?? '',
       palette: ['#182027', '#81999E', '#E9E3CF'],
@@ -239,18 +290,134 @@ export class TmdbCatalog {
       sourceUrl: `https://www.themoviedb.org/${kind}/${raw.id}`,
       fetchedAt: new Date(at).toISOString(),
       metadataComplete: complete,
+      ...(kind === 'tv' && complete
+        ? { episodeDurationSource: raw.episode_run_time?.some((n) => n > 0) ? 'typical' : 'latest' }
+        : {}),
+      ...(complete
+        ? {
+            tagline: raw.tagline ?? '',
+            releaseDate: date || null,
+            originalLanguage: raw.original_language ?? null,
+            catalogStatus: raw.status ?? null,
+            seasons: kind === 'tv' ? (raw.number_of_seasons ?? null) : null,
+            episodes: kind === 'tv' ? (raw.number_of_episodes ?? null) : null,
+            creators: raw.created_by?.map((person) => person.name) ?? [],
+            directors: [
+              ...new Set(
+                raw.credits?.crew
+                  ?.filter((person) => person.job === 'Director')
+                  .map((person) => person.name) ?? [],
+              ),
+            ],
+            cast:
+              raw.credits?.cast
+                ?.slice(0, 12)
+                .map((person) => ({ name: person.name, character: person.character ?? '' })) ?? [],
+            trailerUrl: (() => {
+              const trailer = raw.videos?.results.find(
+                (video) =>
+                  video.site === 'YouTube' &&
+                  video.type === 'Trailer' &&
+                  video.official &&
+                  /^[A-Za-z0-9_-]{11}$/.test(video.key),
+              );
+              return trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : null;
+            })(),
+          }
+        : {}),
     });
+  }
+  private availability(
+    raw: unknown,
+    kind: MediaKind,
+    externalId: number,
+    base: string | null,
+    at: number,
+    stale: boolean,
+  ): Availability {
+    const parsed = providersSchema.safeParse(raw);
+    const data = parsed.success ? parsed.data.results.US : undefined;
+    const types = {
+      flatrate: 'subscription',
+      rent: 'rent',
+      buy: 'buy',
+      free: 'free',
+      ads: 'ads',
+    } as const;
+    const offers: Availability['offers'] = [];
+    for (const [key, type] of Object.entries(types)) {
+      const providers = data?.[key as keyof typeof types] ?? [];
+      for (const provider of [...providers].sort(
+        (a, b) => (a.display_priority ?? 999) - (b.display_priority ?? 999),
+      )) {
+        if (
+          offers.some((offer) => offer.type === type && offer.providerId === provider.provider_id)
+        )
+          continue;
+        const path =
+          provider.logo_path && /^\/[A-Za-z0-9_-]+\.(jpg|png|webp)$/.test(provider.logo_path)
+            ? provider.logo_path
+            : null;
+        offers.push({
+          providerId: provider.provider_id,
+          name: provider.provider_name,
+          type,
+          logoUrl: base && path ? `${base.replace(/w(500|342)$/, 'w92')}${path}` : null,
+        });
+      }
+    }
+    let sourceUrl: string | null = null;
+    if (data?.link) {
+      try {
+        const url = new URL(data.link);
+        if (
+          url.protocol === 'https:' &&
+          url.hostname === 'www.themoviedb.org' &&
+          new RegExp(`^/${kind}/${externalId}(?:-[A-Za-z0-9_-]+)?/watch$`).test(url.pathname) &&
+          !url.username &&
+          !url.password
+        )
+          sourceUrl = url.toString();
+      } catch {
+        /* Preserve metadata when the supplier link is invalid. */
+      }
+    }
+    return {
+      region: 'US',
+      status: parsed.success ? 'available' : 'unavailable',
+      source: 'JustWatch via TMDB',
+      checkedAt: new Date(at).toISOString(),
+      stale,
+      sourceUrl,
+      offers,
+    };
   }
   async detail(kind: MediaKind, externalId: number): Promise<{ media: Media; stale: boolean }> {
     if (!['movie', 'tv'].includes(kind) || !Number.isSafeInteger(externalId) || externalId < 1)
       throw new CatalogError('validation', 'Invalid title.', 400);
-    const result = await this.request(`${kind}/${externalId}`, { language: 'en-US' });
+    const result = await this.request(`${kind}/${externalId}`, {
+      language: 'en-US',
+      append_to_response: 'credits,videos,watch/providers',
+    });
     const parsed = itemSchema.safeParse(result.value);
     if (!parsed.success || parsed.data.id !== externalId)
       throw new CatalogError('upstream', 'Catalog returned invalid title information.');
     if (parsed.data.adult) throw new CatalogError('not_found', 'This title is unavailable.', 404);
     const base = await this.posterBase().catch(() => null);
-    return { media: this.normalize(parsed.data, kind, base, result.at, true), stale: result.stale };
+    return {
+      media: {
+        ...this.normalize(parsed.data, kind, base, result.at, true),
+        availability: this.availability(
+          parsed.data['watch/providers'],
+          kind,
+          externalId,
+          base,
+          result.at,
+          result.stale,
+        ),
+      },
+      stale: result.stale,
+    };
   }
   async search(input: CatalogQuery): Promise<CatalogPage> {
     const parsed = catalogQuerySchema.safeParse(input);
@@ -327,3 +494,5 @@ export class TmdbCatalog {
     };
   }
 }
+
+export { previewTitles } from './preview.ts';

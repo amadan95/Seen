@@ -9,6 +9,24 @@ export type MediaKind = z.infer<typeof mediaKindSchema>;
 export type Sentiment = z.infer<typeof sentimentSchema>;
 export type TvStatus = z.infer<typeof tvStatusSchema>;
 
+export const availabilitySchema = z.object({
+  region: z.literal('US'),
+  status: z.enum(['available', 'unavailable']),
+  source: z.literal('JustWatch via TMDB'),
+  checkedAt: z.string().datetime(),
+  stale: z.boolean(),
+  sourceUrl: z.string().url().nullable(),
+  offers: z.array(
+    z.object({
+      providerId: z.number().int().positive(),
+      name: z.string().min(1),
+      logoUrl: z.string().url().nullable(),
+      type: z.enum(['subscription', 'rent', 'buy', 'free', 'ads']),
+    }),
+  ),
+});
+export type Availability = z.infer<typeof availabilitySchema>;
+
 export const mediaSchema = z.object({
   id: z.string().min(1),
   kind: mediaKindSchema,
@@ -25,6 +43,18 @@ export const mediaSchema = z.object({
   sourceUrl: z.string().url().optional(),
   fetchedAt: z.string().datetime().optional(),
   metadataComplete: z.boolean().optional(),
+  episodeDurationSource: z.enum(['typical', 'latest']).optional(),
+  tagline: z.string().optional(),
+  releaseDate: z.string().nullable().optional(),
+  originalLanguage: z.string().nullable().optional(),
+  catalogStatus: z.string().nullable().optional(),
+  seasons: z.number().int().nonnegative().nullable().optional(),
+  episodes: z.number().int().nonnegative().nullable().optional(),
+  creators: z.array(z.string()).optional(),
+  directors: z.array(z.string()).optional(),
+  cast: z.array(z.object({ name: z.string(), character: z.string() })).optional(),
+  trailerUrl: z.string().url().nullable().optional(),
+  availability: availabilitySchema.optional(),
 });
 export type Media = z.infer<typeof mediaSchema>;
 

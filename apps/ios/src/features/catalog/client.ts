@@ -32,3 +32,7 @@ export async function loadCatalogDetail(id: string, signal?: AbortSignal) {
   };
   return { media: mediaSchema.parse(data.media), stale: data.stale === true };
 }
+
+export async function loadPreviewCatalog(signal?: AbortSignal) {
+  return catalogPageSchema.parse(await request('/catalog/preview', signal));
+}

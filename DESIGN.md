@@ -8,7 +8,7 @@ Charcoal #0B0E10 background, #171C20 surfaces, #30363B dividers, #F5F1E8 primary
 
 Native tabs, navigation stacks and task sheets preserve iOS gestures. Posters are 2:3, rows use separators, rail labels explain actual sources. Score on right, ordinal on left, Provisional visible. Comparison posters have no scores. Forms use clear labels and private-note language.
 
-Preview artwork is original abstract cinematic geometry, authored for the local fixture catalog. It is not supplied movie artwork. Provider and friend rails stay absent until actual services are implemented.
+When the local catalog is configured, real TMDB posters replace abstract artwork throughout the app, including existing sample titles. Abstract geometry remains the credential-free sample fallback. Detail groups US viewing options into Subscription, Free, Free with ads, Rent and Buy, with provider logos, JustWatch/TMDB attribution, checked time and a supplier viewing-options link. Missing offers and failed availability checks are distinct. Friend rails remain absent until their service exists.
 
 Movie and TV posters focus on artwork and opening the title. Keep watchlist actions on detail pages, where their saved state and context are clear.
 

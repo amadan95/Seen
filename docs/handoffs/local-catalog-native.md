@@ -1,5 +1,7 @@
 # Local catalog and native continuation — October 4, 2026
 
+Later increment: [real artwork and streaming availability](live-posters-availability.md) now hydrates existing sample titles, credits, trailers and US viewing summaries. The notes below describe the earlier increment.
+
 ## Scope
 
 The owner requested continued local development after installing Xcode and adding a TMDB key. No hosted Supabase project is configured. Task 02 identity/security primitives are implemented. A local catalog bridge extends the preview while task 03 auth and the production task 04 cache/services remain pending; it does not bypass those production dependencies or claim their acceptance.

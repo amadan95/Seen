@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { TmdbCatalog, CatalogError } from '@seen/catalog';
+import { TmdbCatalog, CatalogError, previewTitles } from '@seen/catalog';
 import { catalogQuerySchema } from '@seen/contracts/catalog';
 import type { MediaKind } from '@seen/contracts';
 
@@ -142,15 +142,48 @@ const server = createServer(async (request, response) => {
       reply(200, { ...(await catalog.search(input.data)), request_id: requestId });
       return;
     }
-    const match = /^\/media\/([a-f0-9-]{36})$/.exec(url.pathname);
-    if (match) {
-      const key = [...identities].find(([, id]) => id === match[1])?.[0];
-      if (!key) throw new CatalogError('not_found', 'This title is unavailable.', 404);
-      const [kind, externalId] = key.split(':');
+    if (url.pathname === '/catalog/preview') {
+      const entries = Object.entries(previewTitles),
+        items = [];
+      let stale = false;
+      for (let start = 0; start < entries.length; start += 4) {
+        const batch = await Promise.allSettled(
+          entries.slice(start, start + 4).map(async ([id, ref]) => {
+            const result = await catalog.detail(ref.kind, ref.externalId);
+            return { ...result, media: { ...result.media, id } };
+          }),
+        );
+        for (const result of batch) {
+          if (result.status === 'fulfilled') {
+            items.push(result.value.media);
+            stale ||= result.value.stale;
+          }
+        }
+      }
+      if (!items.length)
+        throw new CatalogError('upstream', 'Title artwork could not refresh. Try again.');
       reply(200, {
-        ...(await catalog.detail(kind as MediaKind, Number(externalId))),
+        items,
+        nextPage: null,
+        source: 'tmdb',
+        stale,
+        fetchedAt: new Date().toISOString(),
         request_id: requestId,
       });
+      return;
+    }
+    const match = /^\/media\/([a-z0-9-]{1,64})$/.exec(url.pathname);
+    if (match) {
+      const id = match[1]!;
+      const key = [...identities].find(([, storedId]) => storedId === id)?.[0];
+      const ref =
+        previewTitles[id] ??
+        (key
+          ? { kind: key.split(':')[0] as MediaKind, externalId: Number(key.split(':')[1]) }
+          : null);
+      if (!ref) throw new CatalogError('not_found', 'This title is unavailable.', 404);
+      const result = await catalog.detail(ref.kind, ref.externalId);
+      reply(200, { ...result, media: { ...result.media, id }, request_id: requestId });
       return;
     }
     throw new CatalogError('not_found', 'Route unavailable.', 404);

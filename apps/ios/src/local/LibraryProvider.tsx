@@ -14,6 +14,7 @@ import { readLibrary, writeLibrary } from './storage';
 import { ActivityIndicator, View } from 'react-native';
 import { Button, Body } from '../components/ui';
 import { colors } from '../design/tokens';
+import { catalogUrl, loadCatalogDetail, loadPreviewCatalog } from '../features/catalog/client';
 
 type Mutation = (state: Library) => Library;
 interface LibraryContextValue {
@@ -24,10 +25,15 @@ interface LibraryContextValue {
   mutate: (change: Mutation) => Promise<Library>;
   snapshot: (kind: MediaKind) => ReturnType<typeof buildSnapshot>;
   busy: boolean;
+  catalogLoading: boolean;
+  catalogError: string | null;
+  refreshCatalog: () => void;
 }
 const Context = createContext<LibraryContextValue | null>(null);
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const [catalog, setCatalog] = useState<Media[]>(fixtureCatalog);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
   const catalogRef = useRef(new Map(fixtureCatalog.map((media) => [media.id, media])));
   const cacheMedia = useCallback((items: Media[]) => {
     for (const media of items) {
@@ -88,6 +94,49 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     );
     return task;
   }
+  const refreshing = useRef(false);
+  const refreshCatalog = useCallback(() => {
+    if (!catalogUrl || refreshing.current) return;
+    refreshing.current = true;
+    setCatalogLoading(true);
+    setCatalogError(null);
+    const work = async () => {
+      let failed: boolean;
+      try {
+        const preview = await loadPreviewCatalog();
+        cacheMedia(preview.items);
+        failed = preview.items.length < fixtureCatalog.length - 1;
+      } catch {
+        failed = true;
+      }
+      const saved = (current.current?.catalogEntries ?? []).filter((media) =>
+        /^[a-f0-9-]{36}$/.test(media.id),
+      );
+      for (let start = 0; start < saved.length; start += 4) {
+        const batch = await Promise.allSettled(
+          saved.slice(start, start + 4).map((media) => loadCatalogDetail(media.id)),
+        );
+        for (const result of batch) {
+          if (result.status === 'fulfilled') cacheMedia([result.value.media]);
+          else failed = true;
+        }
+      }
+      // Refresh referenced metadata on disk without changing opinion revisions or evidence.
+      await mutate((state) => state);
+      if (failed)
+        setCatalogError('Some title details could not refresh. Saved titles are still available.');
+    };
+    void work()
+      .catch(() => setCatalogError('Title artwork and details could not refresh. Try again.'))
+      .finally(() => {
+        refreshing.current = false;
+        setCatalogLoading(false);
+      });
+  }, [cacheMedia]);
+  const ready = library !== null;
+  useEffect(() => {
+    if (ready) refreshCatalog();
+  }, [ready, refreshCatalog]);
   if (!library)
     return (
       <View
@@ -115,6 +164,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         library,
         mutate,
         busy,
+        catalogLoading,
+        catalogError,
+        refreshCatalog,
         catalog,
         mediaById: catalogRef.current,
         cacheMedia,
