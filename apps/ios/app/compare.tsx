@@ -98,7 +98,7 @@ export default function Compare() {
     }
   }
   const stacked = fontScale > 1.4,
-    posterWidth = stacked ? Math.min(width - 40, 240) : (width - 54) / 2;
+    posterWidth = stacked ? Math.min(width - 40, 240) : Math.min((width - 72) / 2, 170);
   function choice(media: Media, value: ComparisonAnswer) {
     return (
       <View key={media.id} style={{ width: posterWidth, gap: 10, alignItems: 'center' }}>
@@ -118,7 +118,9 @@ export default function Compare() {
           importantForAccessibility="no-hide-descendants"
           style={{ gap: 10, alignItems: 'center', width: posterWidth }}
         >
-          <Body style={{ fontWeight: '600', textAlign: 'center' }}>{media.title}</Body>
+          <Body style={[s.editorial, { fontSize: 20, lineHeight: 26, textAlign: 'center' }]}>
+            {media.title}
+          </Body>
           <Body muted style={s.caption}>
             {media.year ?? 'Year unknown'}
           </Body>
@@ -170,7 +172,8 @@ export default function Compare() {
           <View
             style={{
               flexDirection: stacked ? 'column' : 'row',
-              gap: 14,
+              gap: 32,
+              justifyContent: 'center',
               alignItems: stacked ? 'center' : 'flex-start',
             }}
           >

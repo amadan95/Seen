@@ -53,7 +53,7 @@ export default function Rank() {
         contentContainerStyle={{ paddingBottom: 80 }}
         ListHeaderComponent={
           <View style={{ gap: 16 }}>
-            <Heading large>Your rankings</Heading>
+            <Heading large>Your personal canon</Heading>
             {added && (
               <Body accessibilityLiveRegion="polite">
                 {mediaById.get(added.mediaId)?.title} is ranked · {added.rankScore?.toFixed(1)} / 10

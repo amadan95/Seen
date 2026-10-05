@@ -3,7 +3,7 @@ import { Alert, Platform, View } from 'react-native';
 import { sampleLibrary } from '@seen/fixtures';
 import { emptyLibrary } from '@seen/domain';
 import { useLibrary } from '../src/local/LibraryProvider';
-import { Body, Button, InlineError, Screen, Section, s } from '../src/components/ui';
+import { Body, Button, Heading, InlineError, Screen, Section, s } from '../src/components/ui';
 import { colors } from '../src/design/tokens';
 import { TmdbLogo } from '../src/components/TmdbLogo';
 
@@ -60,6 +60,7 @@ export default function Settings() {
   }
   return (
     <Screen>
+      <Heading large>Make it yours.</Heading>
       <Section title="Account">
         <Body>Local preview · no signed-in account</Body>
         <Body muted>
@@ -78,8 +79,8 @@ export default function Settings() {
       <Section title="Services and region">
         <Body>United States</Body>
         <Body muted>
-          No provider data is connected. Selected-service filters will be enabled with regional
-          availability.
+          Viewing options use the United States region. Selected-service filters are planned for a
+          later release.
         </Body>
       </Section>
       <Section title="Local data">

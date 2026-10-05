@@ -78,10 +78,16 @@ export default function MediaDetail() {
   }
   return (
     <Screen>
+      <Heading large>{media.title}</Heading>
+      <Body muted>
+        {[...(media.directors ?? media.creators ?? []), media.year ?? 'Year unknown'].join(' · ')}
+      </Body>
       <View style={[s.row, { alignItems: 'flex-start', gap: 18 }]}>
         <Poster media={media} width={116} />
         <View style={{ flex: 1, gap: 9 }}>
-          <Heading>{media.title}</Heading>
+          <Body muted numberOfLines={4}>
+            {media.tagline || media.synopsis || 'Overview unavailable.'}
+          </Body>
           <Body muted style={{ fontSize: 15 }}>
             {media.year ?? 'Year unknown'} · {media.kind === 'movie' ? 'Movie' : 'TV show'}
           </Body>

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useLibrary } from '../../src/local/LibraryProvider';
 import {
   Body,
@@ -11,7 +11,7 @@ import {
   Section,
   s,
 } from '../../src/components/ui';
-import { MediaRow } from '../../src/components/Poster';
+import { MediaRow, PosterTile } from '../../src/components/Poster';
 import { Icon } from '../../src/components/Icon';
 import { colors } from '../../src/design/tokens';
 
@@ -22,12 +22,12 @@ export default function Profile() {
     .slice(0, 3);
   return (
     <Screen
-      title="Your profile"
+      title="Your library"
       action={
         <IconButton name="settings" label="Settings" onPress={() => router.push('/settings')} />
       }
     >
-      <View style={{ alignItems: 'center', gap: 10, paddingVertical: 20 }}>
+      <View style={[s.row, { gap: 16, paddingVertical: 12 }]}>
         <View
           style={{
             backgroundColor: colors.surface,
@@ -40,8 +40,10 @@ export default function Profile() {
         >
           <Icon name="profile" size={54} color={colors.accent} />
         </View>
-        <Heading>Your local library</Heading>
-        <Body muted>Private by default. A record of your taste.</Body>
+        <View style={{ flex: 1, gap: 8 }}>
+          <Heading>A record of your taste.</Heading>
+          <Body muted>Private by default.</Body>
+        </View>
       </View>
       <PreviewNotice />
       <View
@@ -70,7 +72,7 @@ export default function Profile() {
         ))}
       </View>
       <Section
-        title="Your top movies"
+        title="The films you return to"
         action={
           <IconButton
             name="chevron"
@@ -79,9 +81,20 @@ export default function Profile() {
           />
         }
       >
-        {top.map((item) => (
-          <MediaRow key={item.mediaId} media={mediaById.get(item.mediaId)!} rank={item} />
-        ))}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 12 }}
+        >
+          {top.map((item) => (
+            <PosterTile
+              key={item.mediaId}
+              media={mediaById.get(item.mediaId)!}
+              width={106}
+              reason={`#${item.position} · ${item.rankScore?.toFixed(1)} / 10${item.evidence === 'provisional' ? ' · Provisional' : ''}`}
+            />
+          ))}
+        </ScrollView>
         {!top.length && <Body muted>Compare a few seen titles to start your list.</Body>}
       </Section>
       <Section title="Watch history">
@@ -95,7 +108,7 @@ export default function Profile() {
               {log.watchedOn ?? 'Watch date unknown'}
               {log.rewatch ? ' · Rewatch' : ''}
             </Body>
-            {log.note && (
+            {Boolean(log.note) && (
               <Body muted style={s.caption}>
                 Private note: {log.note}
               </Body>

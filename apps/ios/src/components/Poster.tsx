@@ -3,13 +3,14 @@ import { useState } from 'react';
 import Svg, { Circle, Path, Rect, Line, G } from 'react-native-svg';
 import { router } from 'expo-router';
 import type { Media, RankItem } from '@seen/contracts';
-import { colors } from '../design/tokens';
+import { colors, typography } from '../design/tokens';
 import { Body, Badge, s } from './ui';
 
 export function Poster({
   media,
   width = 144,
   compact = false,
+  height,
   onPress,
   accessibilityLabel,
   disabled = false,
@@ -17,11 +18,12 @@ export function Poster({
   media: Media;
   width?: number;
   compact?: boolean;
+  height?: number;
   onPress?: () => void;
   accessibilityLabel?: string;
   disabled?: boolean;
 }) {
-  const artwork = <PosterArtwork media={media} width={width} compact={compact} />;
+  const artwork = <PosterArtwork media={media} width={width} compact={compact} height={height} />;
   if (!onPress) return artwork;
   return (
     <Pressable
@@ -42,10 +44,12 @@ function PosterArtwork({
   media,
   width = 144,
   compact = false,
+  height,
 }: {
   media: Media;
   width?: number;
   compact?: boolean;
+  height?: number;
 }) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const imageKey = `${media.posterUrl}:${media.fetchedAt ?? ''}`;
@@ -56,7 +60,12 @@ function PosterArtwork({
         resizeMode="cover"
         accessible={false}
         onError={() => setFailedUrl(imageKey)}
-        style={{ width, height: width * 1.5, borderRadius: 8, backgroundColor: colors.surface }}
+        style={{
+          width,
+          height: height ?? width * 1.5,
+          borderRadius: 3,
+          backgroundColor: colors.surface,
+        }}
       />
     );
   if (media.source === 'tmdb')
@@ -65,8 +74,8 @@ function PosterArtwork({
         accessible={false}
         style={{
           width,
-          height: width * 1.5,
-          borderRadius: 8,
+          height: height ?? width * 1.5,
+          borderRadius: 3,
           backgroundColor: colors.surface,
           padding: 8,
           alignItems: 'center',
@@ -83,8 +92,8 @@ function PosterArtwork({
     <View
       style={{
         width,
-        height: width * 1.5,
-        borderRadius: 8,
+        height: height ?? width * 1.5,
+        borderRadius: 3,
         overflow: 'hidden',
         backgroundColor: background,
       }}
@@ -213,10 +222,12 @@ export function MediaRow({
   media,
   rank,
   trailing,
+  description,
 }: {
   media: Media;
   rank?: RankItem;
   trailing?: React.ReactNode;
+  description?: string;
 }) {
   const open = () => router.push({ pathname: '/media/[id]', params: { id: media.id } });
   const label = `${media.title}, ${media.year ?? 'year unknown'}${rank?.position ? `, position ${rank.position}, your rank score ${rank.rankScore} out of 10, ${rank.evidence}` : ''}`;
@@ -226,7 +237,7 @@ export function MediaRow({
         <Text style={ps.ordinal}>{rank.position}</Text>
       )}
       <View style={[s.row, { flex: 1 }]}>
-        <Poster media={media} width={52} compact onPress={open} accessibilityLabel={label} />
+        <Poster media={media} width={62} compact onPress={open} accessibilityLabel={label} />
         <Pressable
           onPress={open}
           accessible={false}
@@ -235,9 +246,20 @@ export function MediaRow({
           importantForAccessibility="no-hide-descendants"
           style={{ flex: 1, gap: 3, minHeight: 44, justifyContent: 'center' }}
         >
-          <Body style={{ fontWeight: '600', fontSize: 16, lineHeight: 23 }}>{media.title}</Body>
+          <Body
+            style={{
+              fontFamily: typography.editorial,
+              fontSize: 19,
+              lineHeight: 25,
+            }}
+          >
+            {media.title}
+          </Body>
           <Body muted style={s.caption}>
             {media.year ?? 'Year unknown'} · {media.kind === 'movie' ? 'Movie' : 'TV'}
+          </Body>
+          <Body muted style={s.caption}>
+            {description ?? media.genres.join(' · ')}
           </Body>
           {rank?.evidence === 'provisional' && <Badge label="Provisional" />}
         </Pressable>
@@ -272,8 +294,8 @@ const ps = StyleSheet.create({
   },
   ordinal: {
     color: colors.text,
-    fontSize: 24,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '400',
     width: 28,
     fontVariant: ['tabular-nums'],
   },
@@ -283,10 +305,7 @@ const ps = StyleSheet.create({
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
     minWidth: 59,
-    textAlign: 'center',
-    borderWidth: 1,
-    borderColor: colors.accent,
-    borderRadius: 10,
+    textAlign: 'right',
     paddingVertical: 8,
   },
 });

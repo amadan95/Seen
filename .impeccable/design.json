@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-05T12:26:09.024523+00:00",
+  "title": "Design System: Seen",
+  "extensions": {
+    "colorMeta": {
+      "background": {
+        "role": "neutral",
+        "displayName": "Plum page"
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Plum paper"
+      },
+      "elevated": {
+        "role": "neutral",
+        "displayName": "Raised plum"
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Fine plum rule"
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Warm cream"
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Programme annotation"
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Programme gold"
+      },
+      "success": {
+        "role": "semantic",
+        "displayName": "Success feedback"
+      },
+      "danger": {
+        "role": "semantic",
+        "displayName": "Error feedback"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Editorial display",
+        "purpose": "Large screen and journey headings."
+      },
+      "title": {
+        "displayName": "Programme title",
+        "purpose": "Media rows; rail captions remain system type."
+      },
+      "body": {
+        "displayName": "Native body",
+        "purpose": "System font inherited by React Native."
+      }
+    },
+    "shadows": [],
+    "motion": [],
+    "breakpoints": [],
+    "nativeContext": {
+      "platform": "iOS first; React Native / Expo Router",
+      "units": "Frontmatter pt values represent React Native logical points. HTML/CSS snippets use px only to visualize the same proportions.",
+      "sourceFiles": [
+        "apps/ios/src/design/tokens.ts",
+        "apps/ios/src/components/ui.tsx",
+        "apps/ios/src/components/Poster.tsx",
+        "apps/ios/src/components/Icon.tsx",
+        "apps/ios/app/_layout.tsx",
+        "apps/ios/app/(tabs)/_layout.tsx",
+        "apps/ios/app/(tabs)/index.tsx"
+      ],
+      "visualAuthority": "User-approved B Festival Programme throughout, with A Home composition converted to B. Supersedes the older boards and DESIGN.md.",
+      "previewScope": "Local preview with configured real TMDB bridge. Authentication, remote services and native release verification remain gates.",
+      "sampleScope": "Self-contained web translations of native primitives, not browser product components. Focus outlines exist only for accessible sidecar samples. No invented hover or motion behavior.",
+      "tonalRamps": "No runtime tonal ramp exists; palette metadata intentionally does not fabricate additional brand colors."
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Native Pressable visual translation; minimum height permits text growth.",
+      "html": "<button class=\"ds-button-primary\">Explore a title</button>",
+      "css": ".ds-button-primary { min-height:48px; padding:12px 18px; border-radius:10px; border:none; background:#E6CFB1; color:#20191E; font:600 16px system-ui,sans-serif; } .ds-button-primary:active { opacity:.75; } .ds-button-primary:disabled { opacity:.45; } .ds-button-primary:focus-visible { outline:2px solid #E6CFB1; outline-offset:3px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Native Pressable visual translation; minimum height permits text growth.",
+      "html": "<button class=\"ds-button-secondary\">Explore a title</button>",
+      "css": ".ds-button-secondary { min-height:48px; padding:12px 18px; border-radius:10px; border:1px solid #4B3E48; background:#2C242A; color:#F4ECE2; font:600 16px system-ui,sans-serif; } .ds-button-secondary:active { opacity:.75; } .ds-button-secondary:disabled { opacity:.45; } .ds-button-secondary:focus-visible { outline:2px solid #E6CFB1; outline-offset:3px; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Native field translated for preview; web focus outline is preview accessibility only.",
+      "html": "<label class=\"ds-field-label\">Private note<input class=\"ds-field\" placeholder=\"Only for you\" /></label>",
+      "css": ".ds-field-label { display:grid; gap:8px; color:#F4ECE2; font:17px system-ui,sans-serif; } .ds-field { min-height:48px; padding:14px; border:1px solid #4B3E48; border-radius:10px; background:#2C242A; color:#F4ECE2; font:17px system-ui,sans-serif; } .ds-field::placeholder { color:#CABFBE; } .ds-field:focus-visible { outline:2px solid #E6CFB1; outline-offset:3px; }"
+    },
+    {
+      "name": "Selected Chip",
+      "kind": "chip",
+      "refersTo": "chip-selected",
+      "description": "Selection is exposed through native accessibility state.",
+      "html": "<button class=\"ds-chip\" aria-pressed=\"true\">Movies</button>",
+      "css": ".ds-chip { min-height:44px; padding:10px 14px; border:1px solid #E6CFB1; border-radius:18px; background:#E6CFB1; color:#20191E; font:500 14px system-ui,sans-serif; } .ds-chip:focus-visible { outline:2px solid #E6CFB1; outline-offset:3px; }"
+    },
+    {
+      "name": "Format Segments",
+      "kind": "custom",
+      "refersTo": "segment-selected",
+      "description": "Separate media scopes; native selection remains authoritative.",
+      "html": "<div class=\"ds-segments\"><button aria-pressed=\"true\">Movies</button><button aria-pressed=\"false\">TV</button></div>",
+      "css": ".ds-segments { display:flex; padding:3px; border:1px solid #4B3E48; border-radius:10px; background:#2C242A; } .ds-segments button { flex:1; min-height:44px; padding:9px; border:0; border-radius:9px; background:transparent; color:#CABFBE; font:600 15px system-ui,sans-serif; } .ds-segments button[aria-pressed=\"true\"] { background:#E6CFB1; color:#20191E; } .ds-segments button:focus-visible { outline:2px solid #E6CFB1; outline-offset:2px; }"
+    },
+    {
+      "name": "Programme Inset",
+      "kind": "card",
+      "refersTo": "inset",
+      "description": "Quiet contextual surface rather than a universal card grid.",
+      "html": "<section class=\"ds-inset\"><h2>Continue ranking</h2><p>A few comparisons refine your list.</p></section>",
+      "css": ".ds-inset { padding:16px; border-radius:12px; background:#2C242A; color:#F4ECE2; } .ds-inset h2 { margin:0 0 12px; font:400 22px Georgia,serif; } .ds-inset p { margin:0; color:#CABFBE; font:17px/25px system-ui,sans-serif; }"
+    },
+    {
+      "name": "Programme Title Row",
+      "kind": "custom",
+      "refersTo": "poster",
+      "description": "Editorial title and fine rule; example deliberately contains no fabricated score.",
+      "html": "<div class=\"ds-row\"><div class=\"ds-poster\">Poster unavailable</div><div><h3>Title details</h3><p>Year unknown · Movie</p></div></div>",
+      "css": ".ds-row { display:flex; gap:12px; align-items:center; padding:13px 0; border-bottom:1px solid #4B3E48; color:#F4ECE2; } .ds-poster { display:flex; width:62px; height:93px; align-items:center; justify-content:center; border-radius:3px; background:#2C242A; color:#CABFBE; text-align:center; font:9px system-ui,sans-serif; } .ds-row h3 { margin:0; font:400 19px/25px Georgia,serif; } .ds-row p { margin:3px 0 0; color:#CABFBE; font:13px/19px system-ui,sans-serif; }"
+    },
+    {
+      "name": "Five Tabs",
+      "kind": "nav",
+      "description": "Label-only web preview of native navigation; actual iOS tabs use SF Symbols.",
+      "html": "<nav class=\"ds-tabs\" aria-label=\"Main\"><button aria-current=\"page\">Home</button><button>Discover</button><button>Rank</button><button>Watchlist</button><button>Profile</button></nav>",
+      "css": ".ds-tabs { display:flex; background:#20191E; border-top:1px solid #4B3E48; } .ds-tabs button { flex:1; min-height:44px; border:0; background:transparent; color:#CABFBE; font:11px system-ui,sans-serif; } .ds-tabs button[aria-current] { color:#E6CFB1; } .ds-tabs button:focus-visible { outline:2px solid #E6CFB1; outline-offset:-3px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Festival Programme",
+    "overview": "Festival Programme is a private film journal: plum pages, warm cream typography, Georgia headings and finely ruled title rows. Poster artwork supplies the imagery; restrained surfaces and native controls keep logging and ranking comfortable on an iPhone.\n\nThe user-selected B world applies throughout. Home retains the approved A composition—a cropped feature poster, Continue ranking inset and poster rail—translated into B’s palette and typography. Other screens read as an editorial programme. This documents the local preview with its configured real TMDB bridge; authentication, remote services and release verification remain separate gates.",
+    "keyCharacteristics": [
+      "Plum tonal layers and cream editorial type.",
+      "Georgia headings and title rows; system body text and controls.",
+      "Fine rules, nearly square posters and restrained native interaction.",
+      "Honest local-preview, missing-data and unplaced states."
+    ],
+    "rules": [
+      {
+        "name": "The Quiet Accent Rule",
+        "body": "Reserve the action tint for interaction, selection and actual scores; artwork supplies visual variety.",
+        "section": "colors"
+      },
+      {
+        "name": "The Editorial Voice Rule",
+        "body": "Use Georgia for headings and programme title rows; keep functional controls in system type.",
+        "section": "typography"
+      },
+      {
+        "name": "The Programme Rule",
+        "body": "Let typography, artwork and separators structure the page; use filled containers only when the content benefits from an inset.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do apply Festival Programme across every route, including Home’s approved feature-and-rail composition.",
+      "Do keep text scalable, content scrollable and controls reachable with native navigation.",
+      "Do retain actual source labels, unknown dates/runtime and local-preview disclosure.",
+      "Do save sentiment durably before opening targeted comparisons, then continue placement until a score exists or no useful pair remains.",
+      "Do keep movie and TV fits separate, with explicit TV seen-enough eligibility and owner-only private notes."
+    ],
+    "donts": [
+      "Don’t restore the superseded charcoal/system-heading board direction.",
+      "Don’t add poster watchlist ribbons; expose saved state and actions on the detail screen.",
+      "Don’t show scores on comparison posters or infer a score from sentiment alone.",
+      "Don’t fabricate social activity, taste percentages or provider availability.",
+      "Don’t present the local preview as authenticated production service or claim native accessibility/device release checks have passed."
+    ]
+  }
+}

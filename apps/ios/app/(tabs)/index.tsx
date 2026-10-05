@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, ScrollView, View } from 'react-native';
+import { ActivityIndicator, ScrollView, View, useWindowDimensions } from 'react-native';
 import { sampleLibrary } from '@seen/fixtures';
 import { discoveryPicks } from '@seen/domain';
 import { useLibrary } from '../../src/local/LibraryProvider';
@@ -32,6 +32,7 @@ export default function Home() {
     catalogError,
     refreshCatalog,
   } = useLibrary();
+  const { width, fontScale } = useWindowDimensions();
   const [error, setError] = useState<string | null>(null);
   function start(sample: boolean) {
     setError(null);
@@ -46,9 +47,10 @@ export default function Home() {
           <Heading large>Remember what you watched.</Heading>
           <Body muted>Discover what you’ll love.</Body>
         </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 20 }}>
-          <Poster media={mediaById.get('arrival')!} width={138} />
-          <Poster media={mediaById.get('dune')!} width={138} />
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 10, marginBottom: 20 }}>
+          <Poster media={mediaById.get('arrival')!} width={Math.max(64, (width - 60) / 3)} />
+          <Poster media={mediaById.get('dune')!} width={Math.max(64, (width - 60) / 3)} />
+          <Poster media={mediaById.get('moon')!} width={Math.max(64, (width - 60) / 3)} />
         </View>
         <Heading>Track. Rank. Discover.</Heading>
         <Body muted>
@@ -75,6 +77,9 @@ export default function Home() {
     ),
     unplaced = snapshot('movie').items.filter((i) => i.position === null);
   const recent = [...library.logs].reverse().slice(0, 3);
+  const featured = picks[0];
+  const rail = picks.slice(1, 6);
+  const featureWidth = Math.max(1, width - 40);
   return (
     <Screen
       key="home"
@@ -90,53 +95,68 @@ export default function Home() {
         </View>
       }
     >
-      <PreviewNotice />
-      {catalogLoading && (
-        <ActivityIndicator
-          color={colors.accent}
-          accessibilityLabel="Loading posters and title details"
-        />
-      )}
-      {catalogError && (
-        <>
-          <InlineError message={catalogError} />
-          <Button label="Retry catalog" secondary onPress={refreshCatalog} />
-        </>
-      )}
-      <Section
-        title="Continue ranking"
-        action={
-          <IconButton
-            name="chevron"
-            label="Open rankings"
-            onPress={() => router.push('/(tabs)/rank')}
+      <Heading large>Your next great watch.</Heading>
+      {featured && (
+        <View style={{ gap: 12 }}>
+          <Poster
+            media={featured.media}
+            width={featureWidth}
+            height={fontScale > 1.4 ? 270 : 230}
+            onPress={() =>
+              router.push({ pathname: '/media/[id]', params: { id: featured.media.id } })
+            }
+            accessibilityLabel={`Explore ${featured.media.title}. ${featured.reason}`}
           />
-        }
-      >
-        {library.opinions.length >= 2 ? (
-          <View style={{ gap: 12 }}>
-            <Body muted>
-              {unplaced.length
-                ? `${unplaced.length} movie${unplaced.length === 1 ? '' : 's'} waiting to find a place.`
-                : 'A few comparisons refine your list.'}
-            </Body>
-            <Button
-              label="Refine your movies"
-              secondary
-              icon="rank"
-              onPress={() => router.push({ pathname: '/compare', params: { kind: 'movie' } })}
-            />
-          </View>
-        ) : (
-          <EmptyState
-            title="Your list starts with a watch"
-            message="Log two movies you’ve seen to try your first comparison."
-            action={
-              <Button label="Find a title" secondary onPress={() => router.push('/search')} />
+          <Heading>{featured.media.title}</Heading>
+          <Body muted style={s.caption}>
+            {featured.reason}
+          </Body>
+          <Button
+            label={`Explore ${featured.media.title}`}
+            secondary
+            onPress={() =>
+              router.push({ pathname: '/media/[id]', params: { id: featured.media.id } })
             }
           />
-        )}
-      </Section>
+        </View>
+      )}
+      <View style={{ backgroundColor: colors.surface, padding: 16, borderRadius: 12 }}>
+        <Section
+          inset
+          title="Continue ranking"
+          action={
+            <IconButton
+              name="chevron"
+              label="Open rankings"
+              onPress={() => router.push('/(tabs)/rank')}
+            />
+          }
+        >
+          {library.opinions.length >= 2 ? (
+            <View style={{ gap: 12 }}>
+              <Body muted>
+                {unplaced.length
+                  ? `${unplaced.length} movie${unplaced.length === 1 ? '' : 's'} waiting to find a place.`
+                  : 'A few comparisons refine your list.'}
+              </Body>
+              <Button
+                label="Refine your movies"
+                secondary
+                icon="rank"
+                onPress={() => router.push({ pathname: '/compare', params: { kind: 'movie' } })}
+              />
+            </View>
+          ) : (
+            <EmptyState
+              title="Your list starts with a watch"
+              message="Log two movies you’ve seen to try your first comparison."
+              action={
+                <Button label="Find a title" secondary onPress={() => router.push('/search')} />
+              }
+            />
+          )}
+        </Section>
+      </View>
       <Section
         title="Watch tonight"
         action={
@@ -157,7 +177,7 @@ export default function Home() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: 14 }}
         >
-          {picks.slice(0, 5).map((p) => (
+          {rail.map((p) => (
             <PosterTile key={p.media.id} media={p.media} reason={p.reason} width={158} />
           ))}
         </ScrollView>
@@ -168,6 +188,19 @@ export default function Home() {
           />
         )}
       </Section>
+      <PreviewNotice />
+      {catalogLoading && (
+        <ActivityIndicator
+          color={colors.accent}
+          accessibilityLabel="Loading posters and title details"
+        />
+      )}
+      {catalogError && (
+        <>
+          <InlineError message={catalogError} />
+          <Button label="Retry catalog" secondary onPress={refreshCatalog} />
+        </>
+      )}
       <Section
         title="Recently watched"
         action={

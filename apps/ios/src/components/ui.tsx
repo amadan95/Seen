@@ -9,7 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors } from '../design/tokens';
+import { colors, typography } from '../design/tokens';
 import { Icon, type IconName } from './Icon';
 
 export function Body({ muted = false, style, ...props }: TextProps & { muted?: boolean }) {
@@ -117,13 +117,15 @@ export function Section({
   title,
   action,
   children,
+  inset = false,
 }: {
   title: string;
   action?: ReactNode;
   children: ReactNode;
+  inset?: boolean;
 }) {
   return (
-    <View style={s.section}>
+    <View style={[s.section, inset && { marginTop: 0 }]}>
       <View style={s.sectionHeader}>
         <Heading>{title}</Heading>
         {action}
@@ -243,18 +245,27 @@ export const s = StyleSheet.create({
   title: {
     color: colors.text,
     fontSize: 34,
-    fontWeight: '700',
-    letterSpacing: -0.8,
+    fontFamily: typography.editorial,
+    fontWeight: '400',
+    letterSpacing: -0.7,
     flexShrink: 1,
   },
-  heading: { color: colors.text, fontSize: 21, fontWeight: '600', flexShrink: 1 },
+  heading: {
+    color: colors.text,
+    fontSize: 22,
+    fontFamily: typography.editorial,
+    fontWeight: '400',
+    flexShrink: 1,
+  },
+  editorial: { color: colors.text, fontFamily: typography.editorial, fontWeight: '400' },
+  eyebrow: { color: colors.muted, fontSize: 12, letterSpacing: 1.2, textTransform: 'uppercase' },
   body: { color: colors.text, fontSize: 17, lineHeight: 25 },
   caption: { color: colors.muted, fontSize: 13, lineHeight: 19 },
   button: {
     minHeight: 48,
     paddingHorizontal: 18,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -264,7 +275,7 @@ export const s = StyleSheet.create({
   secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   buttonText: { fontSize: 16, fontWeight: '600', textAlign: 'center', flexShrink: 1 },
   iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  section: { gap: 12, marginTop: 16 },
+  section: { gap: 12, marginTop: 24 },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -275,7 +286,7 @@ export const s = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 22,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -288,7 +299,7 @@ export const s = StyleSheet.create({
   segments: {
     padding: 3,
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     flexDirection: 'row',
@@ -319,7 +330,7 @@ export const s = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
+    borderRadius: 10,
     color: colors.text,
     fontSize: 17,
     padding: 14,

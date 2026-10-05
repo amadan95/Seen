@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, FlatList, TextInput, View } from 'react-native';
 import type { MediaKind } from '@seen/contracts';
 import { catalog } from '@seen/fixtures';
 import { discoveryPicks, filterCatalog } from '@seen/domain';
@@ -16,14 +16,13 @@ import {
   Segments,
   s,
 } from '../../components/ui';
-import { PosterTile } from '../../components/Poster';
+import { MediaRow } from '../../components/Poster';
 import { colors } from '../../design/tokens';
 import { catalogUrl } from './client';
 import { useCatalogSearch } from './useCatalogSearch';
 
 export function DiscoverScreen({ search = false }: { search?: boolean }) {
-  const { library, mediaById } = useLibrary(),
-    { width, fontScale } = useWindowDimensions();
+  const { library, mediaById } = useLibrary();
   const [query, setQuery] = useState(''),
     [kind, setKind] = useState<MediaKind | 'all'>('all'),
     [short, setShort] = useState(false),
@@ -47,21 +46,16 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
         { kind, maxRuntime: short ? 120 : null, genre },
         query,
       );
-  const columns = fontScale > 1.4 ? 1 : 2,
-    tileWidth = (width - 40 - (columns - 1) * 14) / columns;
   return (
     <Screen scroll={false}>
       <FlatList
-        key={columns}
         data={results}
-        numColumns={columns}
         keyExtractor={(m) => m.id}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        columnWrapperStyle={columns === 2 ? { gap: 14 } : undefined}
-        contentContainerStyle={{ gap: 22, paddingBottom: 80 }}
+        contentContainerStyle={{ paddingBottom: 80 }}
         ListHeaderComponent={
-          <View style={{ gap: 16 }}>
+          <View style={{ gap: 10, marginBottom: 12 }}>
             {!search && <Heading large>Discover</Heading>}
             {catalogUrl && (
               <Segments
@@ -116,17 +110,15 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
                 />
               ))}
             </View>
-            <PreviewNotice />
-            <Heading>
-              {query ? 'Search results' : genre ? `${genre} picks` : 'Explore the catalog'}
+            <Heading large>
+              {query
+                ? 'Search results'
+                : genre
+                  ? `${genre} picks`
+                  : search
+                    ? 'Explore the catalog'
+                    : 'Find your kind of cinema.'}
             </Heading>
-            <Body muted style={s.caption}>
-              {short
-                ? 'Movies with known runtime of 120 minutes or less.'
-                : live
-                  ? 'Movie and TV metadata from TMDB.'
-                  : 'Illustrative sample catalog.'}
-            </Body>
             {live && remote.page?.stale && (
               <Body muted style={s.caption}>
                 Showing recently cached titles while TMDB is unavailable.
@@ -144,15 +136,9 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
           </View>
         }
         renderItem={({ item }) => (
-          <PosterTile
+          <MediaRow
             media={mediaById.get(item.id) ?? item}
-            reason={
-              live
-                ? `${item.year ?? 'Year unknown'} · ${item.kind === 'movie' ? 'Movie' : 'TV show'}`
-                : (reasons.get(item.id) ??
-                  `${item.year ?? 'Year unknown'} · ${item.kind === 'movie' ? 'Movie' : 'TV show'}`)
-            }
-            width={tileWidth}
+            description={live ? undefined : reasons.get(item.id)}
           />
         )}
         ListEmptyComponent={
@@ -176,21 +162,29 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
           )
         }
         ListFooterComponent={
-          live ? (
-            <View style={{ gap: 14, paddingTop: 18 }}>
-              {remote.page?.nextPage && (
-                <Button
-                  label="More titles"
-                  secondary
-                  disabled={remote.loading}
-                  onPress={remote.loadMore}
-                />
-              )}
+          <View style={{ gap: 14, paddingTop: 18 }}>
+            {live && remote.page?.nextPage && (
+              <Button
+                label="More titles"
+                secondary
+                disabled={remote.loading}
+                onPress={remote.loadMore}
+              />
+            )}
+            <PreviewNotice />
+            <Body muted style={s.caption}>
+              {short
+                ? 'Movies with known runtime of 120 minutes or less.'
+                : live
+                  ? 'Movie and TV metadata from TMDB.'
+                  : 'Illustrative sample catalog.'}
+            </Body>
+            {live && (
               <Body muted style={s.caption}>
                 This product uses the TMDB API but is not endorsed or certified by TMDB.
               </Body>
-            </View>
-          ) : null
+            )}
+          </View>
         }
       />
     </Screen>

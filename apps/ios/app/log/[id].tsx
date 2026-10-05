@@ -111,6 +111,7 @@ export default function LogScreen() {
           </Body>
         </View>
       </View>
+      <Heading large>How did {media.title} stay with you?</Heading>
       {media.kind === 'tv' && (
         <View style={{ gap: 12 }}>
           <Heading>Where are you with this show?</Heading>
@@ -155,12 +156,12 @@ export default function LogScreen() {
       )}
       <Body muted>
         {media.kind === 'movie'
-          ? 'Tap a sentiment to save.'
+          ? 'Choose your sentiment. Your watch saves before comparisons begin.'
           : 'Sentiment is optional. Tap to save your status and opinion.'}
       </Body>
-      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+      <View style={{ gap: 10 }}>
         {(['liked', 'fine', 'disliked'] as const).map((value) => (
-          <View key={value} style={{ flex: 1, minWidth: 90 }}>
+          <View key={value} style={{ width: '100%' }}>
             <Button
               icon={value}
               label={value === 'liked' ? 'Liked' : value === 'fine' ? 'Fine' : 'Disliked'}

@@ -5,11 +5,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LibraryProvider } from '../src/local/LibraryProvider';
 import { colors } from '../src/design/tokens';
 
-// THESIS: a quiet personal movie memory, following the supplied v2 boards.
-// OWN-WORLD: charcoal, ivory, system typography, geometric preview posters.
-// STORY: browse, save a sentiment, optionally compare, choose another watch.
-// SIGNATURE: independent ordinal and automatic score, hidden while comparing.
-// SCOPE: local preview; actual auth, social, catalog and sync remain gated.
+// THESIS: a private film journal in the user's approved Festival Programme world.
+// OWN-WORLD: plum, cream Georgia headings, fine rules and poster-led programme rows.
+// STORY: discover, save a sentiment, compare until scored, return to a personal ranking.
+// FIRST VIEWPORT: Home uses A's cropped feature and rail in B's typography and palette.
+// FORM: user-pinned B, with the explicitly requested A Home composition.
+// FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md.
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
