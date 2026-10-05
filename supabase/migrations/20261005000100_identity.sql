@@ -4,6 +4,9 @@ do $$ begin
     create role seen_identity_owner nologin noinherit;
   end if;
 end $$;
+-- Supabase's migration role is not a superuser. Transfer ownership through an explicit
+-- SET membership; retain administration but disable SET/INHERIT after the transfer.
+grant seen_identity_owner to postgres with set true, inherit false;
 grant usage on schema public, private, auth to seen_identity_owner;
 grant execute on function auth.uid() to seen_identity_owner;
 
@@ -169,6 +172,7 @@ alter function public.bootstrap_profile(text, text) owner to seen_identity_owner
 alter function public.update_own_profile(bigint, text, text, text, text) owner to seen_identity_owner;
 alter function public.update_own_settings(bigint, text, text, text, text, boolean, boolean, boolean, text) owner to seen_identity_owner;
 revoke create on schema public from seen_identity_owner;
+grant seen_identity_owner to postgres with set false, inherit false;
 revoke all on function public.bootstrap_profile(text, text), public.update_own_profile(bigint, text, text, text, text),
   public.update_own_settings(bigint, text, text, text, text, boolean, boolean, boolean, text) from public, anon;
 grant execute on function public.bootstrap_profile(text, text), public.update_own_profile(bigint, text, text, text, text),

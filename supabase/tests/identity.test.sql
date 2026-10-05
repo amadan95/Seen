@@ -16,6 +16,7 @@ select ok(not has_table_privilege('authenticated', 'public.user_settings', 'upda
 select ok(not has_function_privilege('anon', 'public.bootstrap_profile(text,text)', 'execute'), 'bootstrap requires authentication');
 select ok(not has_schema_privilege('seen_identity_owner', 'public', 'create'), 'RPC owner cannot create public objects');
 select ok(not (select rolcanlogin or rolsuper or rolbypassrls from pg_roles where rolname = 'seen_identity_owner'), 'definer role cannot log in or bypass RLS');
+select ok(not pg_has_role('authenticated', 'seen_identity_owner', 'member') and not pg_has_role('anon', 'seen_identity_owner', 'member'), 'clients cannot assume the definer role');
 
 set local role authenticated;
 select throws_ok($$select public.bootstrap_profile('owner', 'Owner')$$, '42501', null, 'missing actor rejected');

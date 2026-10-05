@@ -5,6 +5,7 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start --dev-client",
+    "dev:simulator": "NODE_OPTIONS=--dns-result-order=ipv4first expo start --dev-client --port 8082 --localhost",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",

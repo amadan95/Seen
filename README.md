@@ -26,7 +26,7 @@ Put `TMDB_API_KEY=your-key` in `supabase/functions/.env` (gitignored). A v3 API 
 ```sh
 pnpm catalog:dev
 # Another terminal:
-pnpm --filter @seen/ios exec expo start --dev-client --port 8082 --localhost
+pnpm dev:simulator
 ```
 
 Discover defaults to **Live catalog** when configured and also offers **Sample catalog**. Live search is debounced, paginated, adult-excluded and separated by format; hard runtime filters hydrate movie details and exclude unknown durations. Detail loads real metadata/posters; log/watchlist/compare work with retained title metadata after an app restart. Keep both sample and live library data local; there is no automatic migration to production.

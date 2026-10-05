@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @seen/ios start",
+    "dev:simulator": "pnpm --filter @seen/ios dev:simulator",
     "ios": "pnpm --filter @seen/ios ios",
     "web": "pnpm --filter @seen/ios web",
     "catalog:dev": "node --import tsx scripts/catalog-dev.ts",
