@@ -5,7 +5,6 @@ import { router } from 'expo-router';
 import type { Media, RankItem } from '@seen/contracts';
 import { colors } from '../design/tokens';
 import { Body, Badge, s } from './ui';
-import { WatchlistRibbon } from './WatchlistRibbon';
 
 export function Poster({
   media,
@@ -23,24 +22,18 @@ export function Poster({
   disabled?: boolean;
 }) {
   const artwork = <PosterArtwork media={media} width={width} compact={compact} />;
+  if (!onPress) return artwork;
   return (
-    <View style={{ width, height: width * 1.5 }}>
-      {onPress ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={accessibilityLabel ?? `Open ${media.title}`}
-          accessibilityState={{ disabled }}
-          disabled={disabled}
-          onPress={onPress}
-          style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
-        >
-          {artwork}
-        </Pressable>
-      ) : (
-        artwork
-      )}
-      <WatchlistRibbon media={media} compact={compact || width < 80} />
-    </View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? `Open ${media.title}`}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}
+    >
+      {artwork}
+    </Pressable>
   );
 }
 

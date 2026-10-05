@@ -1,4 +1,8 @@
-# Poster watchlist ribbons — October 4, 2026
+# Poster watchlist ribbons — historical handoff, October 4, 2026
+
+**Superseded:** on October 4, after the user asked to remove the control, the top-right watchlist ribbons were removed from all posters. Posters now open their title; the existing Watchlist action remains on the title detail screen. `DESIGN.md` documents the current behavior.
+
+The notes below record the implementation and checks from the preceding commit. They describe that earlier version, not the current UI.
 
 Added the existing Seen eye artwork to a top-right ribbon on the shared `Poster` component. This covers welcome posters, Home rails, Discover/search, detail, logging sheets, ranking/watchlist/profile/history rows and comparison posters, for both movies and TV. Live artwork, sample art and unavailable-poster fallbacks share the control.
 

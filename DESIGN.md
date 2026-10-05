@@ -10,4 +10,4 @@ Native tabs, navigation stacks and task sheets preserve iOS gestures. Posters ar
 
 Preview artwork is original abstract cinematic geometry, authored for the local fixture catalog. It is not supplied movie artwork. Provider and friend rails stay absent until actual services are implemented.
 
-Every movie/TV poster carries a top-right watchlist ribbon using the existing Seen eye artwork. A plus means add; a check and ivory outline mean saved. Use a smaller ribbon on compact rows while keeping a minimum 44-point touch target. The ribbon acts independently from poster navigation and comparison choices; saved state follows the shared local library only after a durable write succeeds.
+Movie and TV posters focus on artwork and opening the title. Keep watchlist actions on detail pages, where their saved state and context are clear.
