@@ -1,0 +1,7 @@
+# Company-level viewing options — October 6, 2026
+
+Viewing cards now group known subscription tiers and reseller channel listings by the streaming service brand. Paramount Plus Premium/Essential and Paramount+ Amazon/Roku listings become Paramount+; Peacock Premium/Premium Plus become Peacock. Other common service aliases are normalized too. Distinct services such as Disney+ and Hulu remain separate, and unknown provider names stay intact rather than guessing corporate ownership.
+
+The shared availability component renders one logo/name per company within each Stream, Rent, or Buy tab. Subscription-tier text is removed. Original TMDB offers, access types, regional attribution, source URL and checked/cached timestamps remain intact. Screen-reader labels include the combined access types. A base-service logo is preferred where present, with source-logo and missing-logo fallbacks.
+
+Validation: pnpm check passed (ESLint, strict root/workspace TypeScript, 44 tests). Three new tests cover tier/channel deduplication, tab separation, combined access types, canonical logos, distinct/unknown services and empty offers. pnpm edge:bundle regenerated the shared domain bundle; git diff --check passed. No new native dependencies, deployment or hosted configuration changes. Native visual QA was not rerun for this increment. Hosted availability services and account sync remain pending the previously documented owner setup.

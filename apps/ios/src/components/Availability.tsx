@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { groupViewingProviders } from '@seen/domain';
 import { Image, Linking, View, useWindowDimensions } from 'react-native';
 import type { Availability as AvailabilityData } from '@seen/contracts';
 import { Body, Button, Disclosure, InlineError, Segments, s } from './ui';
@@ -36,13 +37,7 @@ export function Availability({ data, loading }: { data?: AvailabilityData; loadi
     rent: 'Rent',
     buy: 'Buy',
   } as const;
-  // Keep each provider once in the chosen group; subscription/free/ad distinctions stay visible.
-  const grouped = data.offers.filter((offer) =>
-    group === 'stream'
-      ? ['subscription', 'free', 'ads'].includes(offer.type)
-      : offer.type === group,
-  );
-  const providers = [...new Map(grouped.map((offer) => [offer.providerId, offer])).values()];
+  const providers = groupViewingProviders(data.offers, group);
   return (
     <View style={{ gap: 12 }}>
       <Segments
@@ -57,9 +52,9 @@ export function Availability({ data, loading }: { data?: AvailabilityData; loadi
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
         {providers.map((offer) => (
           <View
-            key={offer.providerId}
+            key={offer.name}
             accessible
-            accessibilityLabel={`${offer.name}, ${labels[offer.type]}`}
+            accessibilityLabel={`${offer.name}, ${offer.types.map((type) => labels[type]).join(', ')}`}
             style={{
               width: fontScale > 1.4 ? Math.max(150, (width - 56) / 2) : 90,
               alignItems: 'center',
@@ -70,11 +65,6 @@ export function Availability({ data, loading }: { data?: AvailabilityData; loadi
             <Body style={[s.caption, { color: colors.text, textAlign: 'center' }]}>
               {offer.name}
             </Body>
-            {group === 'stream' && (
-              <Body muted style={[s.caption, { textAlign: 'center' }]}>
-                {labels[offer.type]}
-              </Body>
-            )}
           </View>
         ))}
       </View>
