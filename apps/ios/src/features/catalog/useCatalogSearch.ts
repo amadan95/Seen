@@ -11,9 +11,13 @@ export function useCatalogSearch(options: CatalogQuery, enabled: boolean) {
     [retry, setRetry] = useState(0);
   const generation = useRef(0),
     controller = useRef<AbortController | null>(null),
-    previous = useRef('');
+    previous = useRef(''),
+    failedNextPage = useRef<number | null>(null),
+    pageRequestInFlight = useRef(false);
   useEffect(() => {
     const current = ++generation.current;
+    failedNextPage.current = null;
+    pageRequestInFlight.current = false;
     controller.current?.abort();
     if (!enabled) {
       setPage(null);
@@ -49,15 +53,18 @@ export function useCatalogSearch(options: CatalogQuery, enabled: boolean) {
     };
   }, [options, enabled, retry, cacheMedia]);
   function loadMore() {
-    if (!page?.nextPage || loading) return;
+    const nextPage = failedNextPage.current ?? page?.nextPage;
+    if (!nextPage || loading || pageRequestInFlight.current) return;
+    pageRequestInFlight.current = true;
     const current = generation.current;
     const abort = new AbortController();
     controller.current = abort;
     setError(null);
     setLoading(true);
-    void searchCatalog({ ...options, page: page.nextPage }, abort.signal)
+    void searchCatalog({ ...options, page: nextPage }, abort.signal)
       .then((result) => {
         if (current !== generation.current || abort.signal.aborted) return;
+        failedNextPage.current = null;
         cacheMedia(result.items);
         setPage((previousPage) => ({
           ...result,
@@ -70,12 +77,23 @@ export function useCatalogSearch(options: CatalogQuery, enabled: boolean) {
         }));
       })
       .catch(() => {
-        if (current === generation.current && !abort.signal.aborted)
+        if (current === generation.current && !abort.signal.aborted) {
+          failedNextPage.current = nextPage;
           setError('Could not load the next titles. Try again.');
+        }
       })
       .finally(() => {
-        if (current === generation.current && !abort.signal.aborted) setLoading(false);
+        if (current === generation.current && !abort.signal.aborted) {
+          setLoading(false);
+          pageRequestInFlight.current = false;
+        }
       });
   }
-  return { page, error, loading, loadMore, retry: () => setRetry((value) => value + 1) };
+  return {
+    page,
+    error,
+    loading,
+    loadMore,
+    retry: () => (failedNextPage.current !== null ? loadMore() : setRetry((value) => value + 1)),
+  };
 }

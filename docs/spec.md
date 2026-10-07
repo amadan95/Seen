@@ -1169,3 +1169,58 @@ Use the companion **[Seen coding-agent backlog](backlog.md)** as the execution s
 Tasks 01–22 deliver the initial public release. Tasks 23–28 are post-launch gates/extensions and must not be pulled into MVP accidentally. Read each task's dependencies and reuse accepted contracts/components. Before every task, inspect current repository state and completed handoffs; implement only the named increment. Record tests actually run, remaining limitations and any changed architecture decision. Do not claim completion from mock-only screenshots or a successful typecheck when a task requires database/native behavior.
 
 This specification is the source of product semantics. If an implementation finds a genuine conflict or runtime limitation, document a focused decision and update affected contracts/tests rather than inventing silent behavior. No application implementation was created as part of this planning deliverable.
+
+## X. Discovery and ranking improvements — October 6, 2026
+
+This approved refinement preserves Festival Programme, five tabs, private owner notes,
+separate movie/TV scopes and the fixed Rank Score scale. The local preview is a
+reference interaction implementation; tasks 03–22 retain their dependencies and
+production acceptance gates.
+
+- **Tonight:** default to unseen movies, with explicit movie runtime, watchlist-only
+  and exact selected-subscription constraints in the US region. Unknown runtime
+  cannot satisfy a time budget. Unknown, stale, future or incomplete offers cannot
+  satisfy a service constraint. Return up to three distinct results, explain fewer
+  results and offer explicit filter changes. TV suggestions describe whole shows,
+  without treating one episode's length as the whole commitment.
+- **Feedback:** Not tonight and Something different exclude titles only for the
+  current visit. Not interested creates a durable reversible recommendation
+  dismissal, never a Disliked opinion. Hidden recommendations can be restored even
+  after recent Undo receipts expire. Already seen starts historical logging with
+  no fabricated date or attributed first-watch conversion. Search still finds
+  seen and dismissed titles.
+- **Recommendations:** use versioned bounded content relevance and diversification
+  in the preview. Reasons must cite actual available evidence. H1 remains the
+  production baseline; related-title retrieval, franchise metadata and authorized
+  friend signals are enabled only with real catalog/service support. Provisional
+  scores contribute only bounded evidence, never an implied enjoyment probability.
+  Carry request/item IDs through detail, watchlist and first logging; production
+  attribution and visible impressions remain task 17 services.
+- **Ranking:** reuse fits only for identical format-specific eligible opinions and
+  active evidence. Notes, filters and metadata do not refit. Keep the last complete
+  usable snapshot on fit failure; never retain a removed/ineligible title's score.
+  Pick from nearby latent scores, quantile anchors and disconnected groups with
+  ambiguity/coverage/Top-10 heuristics and an eligible bridge on every fifth served
+  question. Seed presentation sides independently of canonical stored orientation.
+  Persist offered sessions and revision-scoped skip cooldowns. General refinement
+  stops at three questions; placement continues until scored, exhausted or explicitly
+  finished later. Placement resume includes explicit TV eligibility.
+- **Recovery:** carry durable mutation-specific Undo across navigation. Restore only
+  the affected rows and reject Undo after intervening edits or relevant evidence.
+  Persist unfinished logging drafts before dismissing them. After a confirmed score,
+  reveal the title among its ranking neighbors and offer optional refinement.
+- **Efficiency:** compute outside screen render paths; budget stale saved-title
+  refreshes, batch updates and use runtime-only detail requests for runtime checks.
+  Use transactional per-record writes on native preview, with atomic legacy migration.
+  Account partitioning, server receipts and outbox replay remain task 09 requirements.
+  Virtualize history and unplaced rankings; preserve Dynamic Type layouts.
+- **Evaluation:** task 17 should measure time to useful watch choice, attributed
+  first watches, post-watch enjoyment, ranking satisfaction, comparison burden and
+  latency. Use time-based splits and only data known at prediction time. Regularization,
+  sentiment priors and uncertainty-aware selection require held-out comparison
+  experiments before changing the solver. Do not label ambiguity as confidence.
+
+After release foundations, add a private monthly programme based on actual dated
+watch events and favorites. Unknown dates stay outside dated totals. Personal
+mini-festivals extend task 23 with owner-editable ordering and progress derived from
+real logs. Neither feature adds speculative social activity or gamified claims.

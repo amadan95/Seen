@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { FlatList, View } from 'react-native';
-import type { MediaKind } from '@seen/contracts';
+import type { MediaKind, RankItem } from '@seen/contracts';
 import { useLibrary } from '../../src/local/LibraryProvider';
 import {
   Body,
@@ -10,58 +10,120 @@ import {
   EmptyState,
   Disclosure,
   Heading,
+  InlineError,
   PreviewNotice,
   Screen,
   Segments,
   s,
 } from '../../src/components/ui';
 import { MediaRow } from '../../src/components/Poster';
+import { UndoActions } from '../../src/components/UndoActions';
+import { colors } from '../../src/design/tokens';
 
+type Row = { type: 'title'; item: RankItem } | { type: 'unplaced' };
 export default function Rank() {
   const params = useLocalSearchParams<{
     kind?: string;
     placed?: string;
     placementRevision?: string;
   }>();
-  const { snapshot, mediaById } = useLibrary(),
-    [kind, setKind] = useState<MediaKind>('movie'),
-    [limit, setLimit] = useState('10'),
-    [genre, setGenre] = useState<string | null>(null),
+  const { snapshot, mediaById, rankingState, retryRanking } = useLibrary();
+  const [kind, setKind] = useState<MediaKind>('movie'),
+    [limit, setLimit] = useState('10');
+  const [genre, setGenre] = useState<string | null>(null),
     [about, setAbout] = useState(false);
+  const [highlight, setHighlight] = useState<string | null>(null);
+  const list = useRef<FlatList<Row>>(null),
+    scrolled = useRef('');
+  const rowHeights = useRef(new Map<string, number>()),
+    headerHeight = useRef(0),
+    viewportHeight = useRef(0);
+  const keyFor = (r: Row) => (r.type === 'title' ? r.item.mediaId : 'unplaced-heading');
   useEffect(() => {
     if (params.kind) setKind(params.kind === 'tv' ? 'tv' : 'movie');
     if (params.placed) {
       setGenre(null);
       setLimit('all');
+      setHighlight(params.placed);
     }
+    const timer = setTimeout(() => setHighlight(null), 5000);
+    return () => clearTimeout(timer);
   }, [params.kind, params.placed, params.placementRevision]);
   const ranks = snapshot(kind),
-    placed = ranks.items.filter((i) => i.position !== null),
-    unplaced = ranks.items.filter((i) => i.position === null);
+    state = rankingState(kind);
+  const placed = ranks.items.filter((i) => i.position !== null);
+  const unplaced = ranks.items.filter(
+    (i) => i.position === null && (!genre || mediaById.get(i.mediaId)?.genres.includes(genre)),
+  );
   const visible = placed.filter(
     (i) =>
-      (!genre || mediaById.get(i.mediaId)!.genres.includes(genre)) &&
+      (!genre || mediaById.get(i.mediaId)?.genres.includes(genre)) &&
       (limit === 'all' || i.position! <= Number(limit)),
   );
-  const added = ranks.items.find(
-    (item) => item.mediaId === params.placed && item.rankScore !== null,
-  );
+  const data: Row[] = [
+    ...visible.map((item): Row => ({ type: 'title', item })),
+    ...(unplaced.length
+      ? [{ type: 'unplaced' } as Row, ...unplaced.map((item): Row => ({ type: 'title', item }))]
+      : []),
+  ];
+  const added = ranks.items.find((i) => i.mediaId === params.placed && i.rankScore !== null);
+  function showPlacement() {
+    const token = `${params.placed}:${params.placementRevision}:${kind}`;
+    if (!params.placed || scrolled.current === token || genre || limit !== 'all') return;
+    const index = data.findIndex((r) => r.type === 'title' && r.item.mediaId === params.placed);
+    if (index < 0) return;
+    const measured = data.slice(0, index + 1).every((r) => rowHeights.current.has(keyFor(r)));
+    if (!measured) {
+      list.current?.scrollToIndex({ index, animated: false, viewPosition: 0.3 });
+      return;
+    }
+    if (!headerHeight.current || !viewportHeight.current) return;
+    scrolled.current = token;
+    const offset =
+      headerHeight.current +
+      data.slice(0, index).reduce((sum, r) => sum + rowHeights.current.get(keyFor(r))!, 0);
+    list.current?.scrollToOffset({
+      offset: Math.max(0, offset - viewportHeight.current * 0.3),
+      animated: false,
+    });
+  }
   return (
     <Screen scroll={false}>
       <FlatList
-        data={visible}
-        keyExtractor={(item) => item.mediaId}
+        ref={list}
+        data={data}
+        keyExtractor={keyFor}
+        onLayout={(event) => {
+          viewportHeight.current = event.nativeEvent.layout.height;
+          requestAnimationFrame(showPlacement);
+        }}
         contentContainerStyle={{ paddingBottom: 80 }}
+        onContentSizeChange={showPlacement}
+        onScrollToIndexFailed={({ index, averageItemLength }) => {
+          list.current?.scrollToOffset({
+            offset: Math.max(0, (index - 1) * averageItemLength),
+            animated: false,
+          });
+        }}
         ListHeaderComponent={
-          <View style={{ gap: 16 }}>
+          <View
+            style={{ gap: 16 }}
+            onLayout={(event) => {
+              headerHeight.current = event.nativeEvent.layout.height;
+              requestAnimationFrame(showPlacement);
+            }}
+          >
             <Heading large>Your rankings</Heading>
-            {added && (
+            {added && !state.error && (
               <Body accessibilityLiveRegion="polite">
-                {mediaById.get(added.mediaId)?.title} is ranked · {added.rankScore?.toFixed(1)} / 10
-                · #{added.position}
+                {mediaById.get(added.mediaId)?.title} has found a place ·{' '}
+                {added.rankScore?.toFixed(1)} / 10 · #{added.position}
                 {added.evidence === 'provisional' ? ' · Provisional' : ''}
               </Body>
             )}
+            <UndoActions />
+            <InlineError message={state.error} />
+            {state.error && <Button label="Retry ranking" secondary onPress={retryRanking} />}
             <Segments
               options={[
                 { value: 'movie', label: 'Movies' },
@@ -85,14 +147,16 @@ export default function Rank() {
                   onChange={setLimit}
                 />
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {['Drama', 'Sci-fi', 'Crime'].map((g) => (
-                    <Chip
-                      key={g}
-                      label={g}
-                      selected={genre === g}
-                      onPress={() => setGenre(genre === g ? null : g)}
-                    />
-                  ))}
+                  {[...new Set(ranks.items.flatMap((i) => mediaById.get(i.mediaId)?.genres ?? []))]
+                    .sort()
+                    .map((g) => (
+                      <Chip
+                        key={g}
+                        label={g}
+                        selected={genre === g}
+                        onPress={() => setGenre(genre === g ? null : g)}
+                      />
+                    ))}
                 </View>
               </View>
             </Disclosure>
@@ -102,16 +166,64 @@ export default function Rank() {
               icon="rank"
               onPress={() => router.push({ pathname: '/compare', params: { kind } })}
             />
+            {visible.length > 0 && (
+              <Body muted style={s.caption}>
+                Position · Title · Rank Score
+              </Body>
+            )}
           </View>
         }
-        renderItem={({ item }) => <MediaRow media={mediaById.get(item.mediaId)!} rank={item} />}
+        renderItem={({ item: row }) => (
+          <View
+            onLayout={(event) => {
+              rowHeights.current.set(keyFor(row), event.nativeEvent.layout.height);
+              requestAnimationFrame(showPlacement);
+            }}
+          >
+            {row.type === 'unplaced' ? (
+              <View style={{ gap: 8, marginTop: 24 }}>
+                <Heading>Not yet placed</Heading>
+                <Body muted style={s.caption}>
+                  These titles are saved. Comparisons are always optional.
+                </Body>
+              </View>
+            ) : (
+              <View
+                style={
+                  highlight === row.item.mediaId ? { backgroundColor: colors.surface } : undefined
+                }
+              >
+                <MediaRow
+                  media={mediaById.get(row.item.mediaId)!}
+                  rank={row.item}
+                  trailing={
+                    row.item.position === null ? (
+                      <Button
+                        label="Compare"
+                        secondary
+                        style={{ paddingHorizontal: 10 }}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/compare',
+                            params: { kind, target: row.item.mediaId, mode: 'placement' },
+                          })
+                        }
+                      />
+                    ) : undefined
+                  }
+                />
+                {highlight === row.item.mediaId && <UndoActions limit={1} />}
+              </View>
+            )}
+          </View>
+        )}
         ListEmptyComponent={
           <EmptyState
             title={placed.length ? 'No ranked titles match' : 'Your ranking is taking shape'}
             message={
               placed.length
                 ? 'Try another genre or view.'
-                : 'Log at least two titles and compare them. Sentiment alone never creates a Rank Score.'
+                : 'Log two titles and compare them. Sentiment alone never creates a Rank Score.'
             }
             action={
               <Button label="Find a title" secondary onPress={() => router.push('/search')} />
@@ -119,7 +231,7 @@ export default function Rank() {
           />
         }
         ListFooterComponent={
-          <View style={{ marginTop: 28, gap: 12 }}>
+          <View style={{ gap: 12, marginTop: 24 }}>
             <Chip label="About Rank Score" selected={about} onPress={() => setAbout(!about)} />
             {about && (
               <Body muted style={s.caption}>
@@ -128,36 +240,6 @@ export default function Rank() {
               </Body>
             )}
             <PreviewNotice />
-            {unplaced.length > 0 && (
-              <>
-                <Heading>Not yet placed</Heading>
-                <Body muted style={s.caption}>
-                  These titles are saved. Comparisons are always optional.
-                </Body>
-                {unplaced
-                  .filter((i) => !genre || mediaById.get(i.mediaId)!.genres.includes(genre))
-                  .map((item) => (
-                    <MediaRow
-                      key={item.mediaId}
-                      media={mediaById.get(item.mediaId)!}
-                      rank={item}
-                      trailing={
-                        <Button
-                          label="Compare"
-                          secondary
-                          style={{ paddingHorizontal: 10 }}
-                          onPress={() =>
-                            router.push({
-                              pathname: '/compare',
-                              params: { kind, target: item.mediaId },
-                            })
-                          }
-                        />
-                      }
-                    />
-                  ))}
-              </>
-            )}
           </View>
         }
       />

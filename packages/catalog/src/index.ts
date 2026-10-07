@@ -276,6 +276,7 @@ export class TmdbCatalog {
       kind,
       title: (kind === 'movie' ? raw.title : raw.name)?.trim() || 'Untitled',
       year: parsedYear,
+      releaseDate: parsedYear !== null ? date : null,
       runtimeMinutes: kind === 'movie' && raw.runtime ? raw.runtime : null,
       episodeMinutes:
         kind === 'tv'
@@ -296,7 +297,6 @@ export class TmdbCatalog {
       ...(complete
         ? {
             tagline: raw.tagline ?? '',
-            releaseDate: date || null,
             originalLanguage: raw.original_language ?? null,
             catalogStatus: raw.status ?? null,
             seasons: kind === 'tv' ? (raw.number_of_seasons ?? null) : null,
@@ -419,6 +419,18 @@ export class TmdbCatalog {
       stale: result.stale,
     };
   }
+  private async runtimeDetail(externalId: number): Promise<{ media: Media; stale: boolean }> {
+    const result = await this.request(`movie/${externalId}`, { language: 'en-US' });
+    const parsed = itemSchema.safeParse(result.value);
+    if (!parsed.success || parsed.data.id !== externalId)
+      throw new CatalogError('upstream', 'Catalog returned invalid title information.');
+    if (parsed.data.adult) throw new CatalogError('not_found', 'This title is unavailable.', 404);
+    const base = await this.posterBase().catch(() => null);
+    return {
+      media: this.normalize(parsed.data, 'movie', base, result.at, false),
+      stale: result.stale,
+    };
+  }
   async search(input: CatalogQuery): Promise<CatalogPage> {
     const parsed = catalogQuerySchema.safeParse(input);
     if (!parsed.success) throw new CatalogError('validation', 'Invalid catalog filters.', 400);
@@ -468,7 +480,7 @@ export class TmdbCatalog {
       const hydrated: typeof items = [];
       for (let start = 0; start < items.length; start += 4) {
         const batch = await Promise.allSettled(
-          items.slice(start, start + 4).map((i) => this.detail('movie', i.raw.id)),
+          items.slice(start, start + 4).map((i) => this.runtimeDetail(i.raw.id)),
         );
         for (let offset = 0; offset < batch.length; offset++) {
           const entry = batch[offset]!;

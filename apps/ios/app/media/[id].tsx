@@ -2,6 +2,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, View, useWindowDimensions } from 'react-native';
 import { setWatchlist } from '@seen/domain';
+import { recommendationContextSchema } from '@seen/contracts';
+import { UndoActions } from '../../src/components/UndoActions';
 import { useLibrary } from '../../src/local/LibraryProvider';
 import {
   Body,
@@ -23,7 +25,12 @@ import { catalogUrl, loadCatalogDetail } from '../../src/features/catalog/client
 
 export default function MediaDetail() {
   const { width, fontScale } = useWindowDimensions();
-  const { id } = useLocalSearchParams<{ id: string }>(),
+  const { id, requestId, itemId, servedAt } = useLocalSearchParams<{
+      id: string;
+      requestId?: string;
+      itemId?: string;
+      servedAt?: string;
+    }>(),
     { library, mutate, snapshot, busy, mediaById, cacheMedia } = useLibrary(),
     media = mediaById.get(id);
   const [error, setError] = useState<string | null>(null);
@@ -70,10 +77,21 @@ export default function MediaDetail() {
   const ranked = snapshot(media.kind).items.find((i) => i.mediaId === id),
     opinion = library.opinions.find((o) => o.mediaId === id),
     saved = library.watchlist.some((w) => w.mediaId === id);
+  const origin = recommendationContextSchema.safeParse({ requestId, itemId, servedAt });
   async function save() {
     setError(null);
     try {
-      await mutate((state) => setWatchlist(state, id, !saved, new Date().toISOString()));
+      await mutate(
+        (state) =>
+          setWatchlist(
+            state,
+            id,
+            !saved,
+            new Date().toISOString(),
+            origin.success ? origin.data : undefined,
+          ),
+        saved ? 'watchlist removal' : 'watchlist save',
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed. Try again.');
     }
@@ -142,7 +160,9 @@ export default function MediaDetail() {
           style={fontScale > 1.4 ? { width: '100%' } : { flex: 1 }}
           label={opinion ? 'Edit log' : 'Log'}
           icon="plus"
-          onPress={() => router.push({ pathname: '/log/[id]', params: { id } })}
+          onPress={() =>
+            router.push({ pathname: '/log/[id]', params: { id, requestId, itemId, servedAt } })
+          }
         />
         <Button
           style={fontScale > 1.4 ? { width: '100%' } : { flex: 1 }}
@@ -154,6 +174,7 @@ export default function MediaDetail() {
         />
       </View>
       <InlineError message={error} />
+      <UndoActions limit={1} />
       <TitleNote key={id} mediaId={id} />
       <Section title="Where to watch">
         {live ? (

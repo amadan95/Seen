@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, TextInput, View, useWindowDimensions } from 'react-native';
 import type { MediaKind } from '@seen/contracts';
 import { catalog } from '@seen/fixtures';
-import { discoveryPicks, filterCatalog } from '@seen/domain';
+import { recommend, filterCatalog } from '@seen/domain';
 import { useLibrary } from '../../local/LibraryProvider';
 import {
   Body,
@@ -23,7 +23,7 @@ import { catalogUrl } from './client';
 import { useCatalogSearch } from './useCatalogSearch';
 
 export function DiscoverScreen({ search = false }: { search?: boolean }) {
-  const { library, mediaById } = useLibrary();
+  const { library, mediaById, catalog: cachedCatalog, snapshot } = useLibrary();
   const { width, fontScale } = useWindowDimensions();
   const columns = fontScale > 1.4 ? 1 : 2;
   const posterWidth = (width - 40 - (columns - 1) * 14) / columns;
@@ -31,25 +31,45 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
     [kind, setKind] = useState<MediaKind | 'all'>('all'),
     [short, setShort] = useState(false),
     [genre, setGenre] = useState<'Sci-fi' | 'Drama' | 'Comedy' | 'Crime' | null>(null),
-    [live, setLive] = useState(Boolean(catalogUrl));
+    [live, setLive] = useState(Boolean(catalogUrl)),
+    [view, setView] = useState<'for_you' | 'browse'>('for_you');
   const options = useMemo(
     () => ({ query, kind, genre, maxRuntime: short ? 120 : null, page: 1 }),
     [query, kind, genre, short],
   );
   const remote = useCatalogSearch(options, live);
-  const reasons = useMemo(
-    () => new Map(discoveryPicks(catalog, library).map((p) => [p.media.id, p.reason])),
-    [library],
+  const [servedAt] = useState(() => new Date().toISOString());
+  const personal = !search && !query.trim() && view === 'for_you';
+  const picks = useMemo(
+    () =>
+      recommend(
+        (live ? cachedCatalog : catalog.map((m) => mediaById.get(m.id) ?? m)).filter(
+          (m) => m.id !== 'unknown',
+        ),
+        library,
+        {
+          kind,
+          genre,
+          maxRuntime: short ? 120 : null,
+          seed: 'discover',
+          now: new Date().toISOString(),
+          snapshots: [snapshot('movie'), snapshot('tv')],
+        },
+      ).items,
+    [cachedCatalog, library, kind, genre, short, live],
   );
-  const results = live
-    ? (remote.page?.items ?? [])
-    : filterCatalog(
-        catalog
-          .map((media) => mediaById.get(media.id) ?? media)
-          .filter((media) => !catalogUrl || media.id !== 'unknown'),
-        { kind, maxRuntime: short ? 120 : null, genre },
-        query,
-      );
+  const reasons = new Map(picks.map((p) => [p.media.id, p.reason]));
+  const results = personal
+    ? picks.map((p) => p.media)
+    : live
+      ? (remote.page?.items ?? [])
+      : filterCatalog(
+          catalog
+            .map((m) => mediaById.get(m.id) ?? m)
+            .filter((m) => !catalogUrl || m.id !== 'unknown'),
+          { kind, maxRuntime: short ? 120 : null, genre },
+          query,
+        );
   return (
     <Screen scroll={false} inStack={search}>
       <FlatList
@@ -64,6 +84,16 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
         ListHeaderComponent={
           <View style={{ gap: 10, marginBottom: 12 }}>
             {!search && <Heading large>Discover</Heading>}
+            {!search && !query.trim() && (
+              <Segments
+                options={[
+                  { value: 'for_you', label: 'For you' },
+                  { value: 'browse', label: 'Browse' },
+                ]}
+                value={view}
+                onChange={setView}
+              />
+            )}
             <TextInput
               accessibilityLabel="Search movies and TV"
               placeholder="Search movies and shows"
@@ -139,7 +169,17 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
           <PosterTile
             media={mediaById.get(item.id) ?? item}
             width={posterWidth}
-            reason={live ? String(item.year ?? 'Year unknown') : reasons.get(item.id)}
+            recommendation={
+              personal
+                ? (() => {
+                    const pick = picks.find((p) => p.media.id === item.id);
+                    return pick
+                      ? { requestId: pick.requestId, itemId: pick.itemId, servedAt }
+                      : undefined;
+                  })()
+                : undefined
+            }
+            reason={personal ? reasons.get(item.id) : String(item.year ?? 'Year unknown')}
           />
         )}
         ListEmptyComponent={
@@ -164,7 +204,7 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
         }
         ListFooterComponent={
           <View style={{ gap: 14, paddingTop: 18 }}>
-            {live && remote.page?.nextPage && (
+            {live && !personal && remote.page?.nextPage && (
               <Button
                 label="More titles"
                 secondary

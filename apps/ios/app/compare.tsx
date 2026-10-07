@@ -1,36 +1,79 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 import type { ComparisonAnswer, Media } from '@seen/contracts';
-import { answerComparison, buildSnapshot, confirmSeenEnough, pickComparison } from '@seen/domain';
+import {
+  answerSession,
+  confirmSeenEnough,
+  openComparisonSession,
+  offerComparison,
+  rankingInputKey,
+  retrySkippedPairs,
+} from '@seen/domain';
 import { useLibrary } from '../src/local/LibraryProvider';
 import { Body, Button, EmptyState, Heading, InlineError, Screen, s } from '../src/components/ui';
+import { UndoActions } from '../src/components/UndoActions';
 import { Poster } from '../src/components/Poster';
 
 export default function Compare() {
   const params = useLocalSearchParams<{ kind?: string; target?: string; mode?: string }>(),
     placement = params.mode === 'placement' && Boolean(params.target);
-  const { library, mutate, busy, snapshot, catalog } = useLibrary(),
+  const { library, mutate, busy, snapshot, catalog, rankingState, retryRanking } = useLibrary(),
     { width, fontScale } = useWindowDimensions();
-  const [steps, setSteps] = useState(0),
-    [excluded, setExcluded] = useState(new Set<string>()),
-    [error, setError] = useState<string | null>(null);
-  const [undo, setUndo] = useState<{
-    eventId: string;
-    pairKey: string;
-    previousExcluded: Set<string>;
-    steps: number;
-  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
   const targetMedia = catalog.find((media) => media.id === params.target);
   const kind = targetMedia?.kind ?? (params.kind === 'tv' ? 'tv' : 'movie');
-  const comparisonCatalog = catalog.filter((media) => media.kind === kind);
-  const targetOpinion = library.opinions.find((opinion) => opinion.mediaId === params.target);
-  const needsConfirmation =
-    placement && kind === 'tv' && targetOpinion?.sentiment && !targetOpinion.seenEnough;
+  const mode = placement ? 'placement' : 'refine';
+  const [sessionId] = useState(
+    () =>
+      library.comparisonSessions.find(
+        (s) =>
+          s.kind === kind &&
+          s.target === params.target &&
+          s.mode === mode &&
+          (placement || s.steps < 3),
+      )?.id ?? `session-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
+  const session = library.comparisonSessions.find((s) => s.id === sessionId);
+  const steps = session?.steps ?? 0;
+  const targetOpinion = library.opinions.find((o) => o.mediaId === params.target);
+  const needsConfirmation = Boolean(
+    placement && kind === 'tv' && targetOpinion?.sentiment && !targetOpinion.seenEnough,
+  );
+  const rankState = rankingState(kind);
+  const inputKey = rankingInputKey(catalog, library, kind);
+  useEffect(() => {
+    if (!session) {
+      void mutate((state) =>
+        openComparisonSession(state, kind, params.target, mode, sessionId),
+      ).catch(() => setError('This comparison session could not be saved. Try reopening it.'));
+      return;
+    }
+    if (
+      needsConfirmation ||
+      rankState.error ||
+      (mode === 'refine' && session.steps >= 3) ||
+      session.inputKey === inputKey
+    )
+      return;
+    void mutate((state) =>
+      offerComparison(
+        state,
+        catalog,
+        sessionId,
+        rankingState(kind).analysis,
+        new Date().toISOString(),
+      ),
+    ).catch(() => setError('Your next pair could not be saved. Try reopening comparisons.'));
+  }, [session, inputKey, needsConfirmation, rankState.error, catalog]);
+  const offered = session?.inputKey === inputKey ? session.offered : null;
   const pair =
-    !needsConfirmation && (placement || steps < 3)
-      ? pickComparison(comparisonCatalog, library, kind, excluded, params.target)
+    !needsConfirmation && offered && (placement || steps < 3)
+      ? ([catalog.find((m) => m.id === offered[0])!, catalog.find((m) => m.id === offered[1])!] as [
+          Media,
+          Media,
+        ])
       : null;
   function openRankings(placed = false, revision?: number) {
     router.dismissAll();
@@ -49,7 +92,10 @@ export default function Compare() {
     inFlight.current = true;
     setError(null);
     try {
-      await mutate((state) => confirmSeenEnough(state, catalog, params.target!));
+      await mutate(
+        (state) => confirmSeenEnough(state, catalog, params.target!),
+        'TV ranking eligibility',
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Confirmation could not save. Try again.');
     } finally {
@@ -60,19 +106,15 @@ export default function Compare() {
     if (!pair || busy || inFlight.current) return;
     inFlight.current = true;
     setError(null);
-    const key = [pair[0].id, pair[1].id].sort().join('|'),
-      eventId = `pair-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const eventId = `pair-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     try {
-      const next = await mutate((state) =>
-        answerComparison(state, catalog, pair[0].id, pair[1].id, value, eventId),
+      const next = await mutate(
+        (state) =>
+          answerSession(state, catalog, sessionId, value, eventId, new Date().toISOString()),
+        value === 'skip' || value === 'undecided' ? undefined : 'last comparison',
       );
-      setUndo({ eventId, pairKey: key, previousExcluded: new Set(excluded), steps });
-      setExcluded(new Set([...excluded, key]));
-      setSteps(steps + 1);
-      if (placement && value !== 'skip' && value !== 'undecided') {
-        const placed = buildSnapshot(catalog, next, kind).items.find(
-          (item) => item.mediaId === params.target,
-        );
+      if (placement && value !== 'skip' && value !== 'undecided' && !rankingState(kind).error) {
+        const placed = snapshot(kind).items.find((item) => item.mediaId === params.target);
         if (placed?.rankScore !== null && placed?.rankScore !== undefined)
           openRankings(true, next.revision);
       }
@@ -80,22 +122,6 @@ export default function Compare() {
       setError(e instanceof Error ? e.message : 'Answer could not be saved. Try again.');
     } finally {
       inFlight.current = false;
-    }
-  }
-  async function undoAnswer() {
-    if (!undo || busy) return;
-    setError(null);
-    try {
-      await mutate((state) => ({
-        ...state,
-        revision: state.revision + 1,
-        comparisons: state.comparisons.filter((c) => c.id !== undo.eventId),
-      }));
-      setExcluded(undo.previousExcluded);
-      setSteps(undo.steps);
-      setUndo(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Undo failed. Try again.');
     }
   }
   const stacked = fontScale > 1.4,
@@ -159,6 +185,9 @@ export default function Compare() {
             />
           }
         />
+      ) : !session ||
+        (session.inputKey !== inputKey && !rankState.error && (placement || steps < 3)) ? (
+        <Body muted>Preparing your next comparison…</Body>
       ) : pair ? (
         <>
           <View style={{ gap: 10, marginVertical: 12 }}>
@@ -232,11 +261,15 @@ export default function Compare() {
           }
           action={
             <View style={{ gap: 12 }}>
-              {placement && excluded.size > 0 && (
+              {placement && (session?.excluded.length ?? 0) > 0 && (
                 <Button
                   label="Try skipped pairs again"
                   secondary
-                  onPress={() => setExcluded(new Set())}
+                  onPress={() => {
+                    void mutate((state) => retrySkippedPairs(state, sessionId)).catch(() =>
+                      setError('Could not retry these pairs. Try again.'),
+                    );
+                  }}
                 />
               )}
               <Button
@@ -256,16 +289,10 @@ export default function Compare() {
             {targetRank.evidence}
           </Body>
         )}
-      <InlineError message={error} />
-      {undo && (
-        <Button
-          label="Undo last answer"
-          secondary
-          icon="undo"
-          disabled={busy}
-          onPress={() => void undoAnswer()}
-        />
-      )}
+      <InlineError message={error ?? rankState.error} />
+      {rankState.error && <Button label="Retry ranking" secondary onPress={retryRanking} />}
+      {!session && <Body muted>Opening your saved comparison session…</Body>}
+      <UndoActions />
       <Body muted style={s.caption}>
         Local comparison preview. Production comparisons will require an online, authorized session.
       </Body>

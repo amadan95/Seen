@@ -66,6 +66,12 @@ export const opinionSchema = z.object({
   revision: z.number().int().positive(),
 });
 export type Opinion = z.infer<typeof opinionSchema>;
+export const recommendationContextSchema = z.object({
+  requestId: z.string().min(1),
+  itemId: z.string().min(1),
+  servedAt: z.string().datetime(),
+});
+export type RecommendationContext = z.infer<typeof recommendationContextSchema>;
 export const logSchema = z.object({
   id: z.string(),
   mediaId: z.string(),
@@ -77,6 +83,7 @@ export const logSchema = z.object({
   historical: z.boolean(),
   rewatch: z.boolean(),
   note: z.string().max(280),
+  recommendation: recommendationContextSchema.optional(),
 });
 export type WatchLog = z.infer<typeof logSchema>;
 export const comparisonSchema = z.object({
@@ -93,6 +100,7 @@ export const watchlistSchema = z.object({
   mediaId: z.string(),
   addedAt: z.string().datetime(),
   priority: z.number().int().min(0).max(2),
+  recommendation: recommendationContextSchema.optional(),
 });
 export type WatchlistItem = z.infer<typeof watchlistSchema>;
 
@@ -102,6 +110,68 @@ export const titleNoteSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 export type TitleNote = z.infer<typeof titleNoteSchema>;
+
+export const dismissalSchema = z.object({
+  mediaId: z.string(),
+  createdAt: z.string().datetime(),
+  requestId: z.string(),
+  itemId: z.string(),
+});
+export const logDraftSchema = z.object({
+  mediaId: z.string(),
+  status: tvStatusSchema,
+  seenEnough: z.boolean(),
+  watchedOn: z.string().max(10),
+  historical: z.boolean(),
+  rewatch: z.boolean(),
+  note: z.string().max(280),
+});
+export type LogDraft = z.infer<typeof logDraftSchema>;
+export const comparisonSessionSchema = z.object({
+  id: z.string(),
+  kind: mediaKindSchema,
+  target: z.string().optional(),
+  mode: z.enum(['placement', 'refine']),
+  seed: z.string(),
+  steps: z.number().int().nonnegative(),
+  served: z.number().int().nonnegative(),
+  excluded: z.array(z.string()),
+  offered: z.tuple([z.string(), z.string()]).nullable(),
+  inputKey: z.string(),
+  reason: z.string(),
+});
+export type ComparisonSession = z.infer<typeof comparisonSessionSchema>;
+export const comparisonCooldownSchema = z.object({
+  key: z.string(),
+  until: z.string().datetime(),
+  aRevision: z.number().int().positive(),
+  bRevision: z.number().int().positive(),
+});
+const undoPatch = <T extends z.ZodType>(row: T) =>
+  z.object({
+    keys: z.array(z.string()),
+    before: z.array(row),
+    after: z.array(row),
+  });
+export const undoReceiptSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  createdAt: z.string().datetime(),
+  patches: z.object({
+    opinions: undoPatch(opinionSchema).optional(),
+    logs: undoPatch(logSchema).optional(),
+    notes: undoPatch(titleNoteSchema).optional(),
+    comparisons: undoPatch(comparisonSchema).optional(),
+    watchlist: undoPatch(watchlistSchema).optional(),
+    dismissals: undoPatch(dismissalSchema).optional(),
+  }),
+  opinionGuards: z.array(opinionSchema),
+  // Log undo must not resurrect evidence invalidated or added by later answers.
+  comparisonGuards: z.array(comparisonSchema),
+  guardedMediaIds: z.array(z.string()),
+  guardedPairKeys: z.array(z.string()).default([]),
+});
+export type UndoReceipt = z.infer<typeof undoReceiptSchema>;
 
 export const librarySchema = z.object({
   schemaVersion: z.literal(1),
@@ -114,6 +184,15 @@ export const librarySchema = z.object({
   watchlist: z.array(watchlistSchema),
   // Backward-compatible preview metadata, independent of eventual production catalog tables.
   catalogEntries: z.array(mediaSchema).default([]),
+  dismissals: z.array(dismissalSchema).default([]),
+  selectedProviders: z.array(z.number().int().positive()).default([]),
+  logDrafts: z.array(logDraftSchema).default([]),
+  comparisonSessions: z.array(comparisonSessionSchema).default([]),
+  comparisonCooldowns: z.array(comparisonCooldownSchema).default([]),
+  comparisonServeCounts: z
+    .object({ movie: z.number().int().nonnegative(), tv: z.number().int().nonnegative() })
+    .default({ movie: 0, tv: 0 }),
+  undoReceipts: z.array(undoReceiptSchema).default([]),
 });
 export type Library = z.infer<typeof librarySchema>;
 

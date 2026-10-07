@@ -221,3 +221,14 @@ Sentiment choices save durably before automatically opening targeted comparisons
 Stream, Rent and Buy select one provider group at a time. Providers appear as logos with short names and access-type labels; no duplicated rental/purchase lists fill the detail screen. Region and JustWatch/TMDB attribution remain visible. Checked time and offer caveats expand under Availability details. Empty groups and failed checks retain distinct messages.
 
 Discover, ranking and Watchlist keep less-used filters and sorting inside expandable controls. Active ranking/Discover filters appear in the control label. Preview explanations and score definitions sit after content or in Settings rather than competing with film artwork.
+
+### Tonight and placement refinement
+
+Keep the Festival Programme palette, editorial serif headings, poster-led rows and
+quiet dividers. Tonight is a stack route from Home, not a sixth tab. Format/time
+controls precede the programme; optional service selection is a disclosure. Every
+pick has a grounded reason and distinct temporary-dismissal, persistent-dismissal
+and historical-log actions. Empty results disclose constraints rather than silently
+loosening them. Durable Undo follows navigation. Rank reveals a newly placed title
+among its neighbors with a brief surface highlight; long history/unplaced content
+uses virtualized rows, with stacked actions on narrow or large-text layouts.

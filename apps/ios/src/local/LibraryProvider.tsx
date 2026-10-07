@@ -8,7 +8,13 @@ import {
   type ReactNode,
 } from 'react';
 import type { Library, Media, MediaKind } from '@seen/contracts';
-import { buildSnapshot, emptyLibrary } from '@seen/domain';
+import {
+  RankingCache,
+  emptyLibrary,
+  withUndo,
+  undoMutation,
+  type RankingState,
+} from '@seen/domain';
 import { catalog as fixtureCatalog } from '@seen/fixtures';
 import { readLibrary, writeLibrary } from './storage';
 import { ActivityIndicator, View } from 'react-native';
@@ -22,8 +28,11 @@ interface LibraryContextValue {
   mediaById: Map<string, Media>;
   cacheMedia: (items: Media[]) => void;
   library: Library;
-  mutate: (change: Mutation) => Promise<Library>;
-  snapshot: (kind: MediaKind) => ReturnType<typeof buildSnapshot>;
+  mutate: (change: Mutation, undoLabel?: string) => Promise<Library>;
+  undo: (id: string) => Promise<Library>;
+  rankingState: (kind: MediaKind) => RankingState;
+  retryRanking: () => void;
+  snapshot: (kind: MediaKind) => RankingState['analysis']['snapshot'];
   busy: boolean;
   catalogLoading: boolean;
   catalogError: string | null;
@@ -31,6 +40,8 @@ interface LibraryContextValue {
 }
 const Context = createContext<LibraryContextValue | null>(null);
 export function LibraryProvider({ children }: { children: ReactNode }) {
+  const rankingCache = useRef(new RankingCache());
+  const [, updateRanks] = useState(0);
   const [catalog, setCatalog] = useState<Media[]>(fixtureCatalog);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -41,7 +52,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       if (previous?.metadataComplete && !media.metadataComplete) continue;
       catalogRef.current.set(media.id, media);
     }
-    setCatalog([...catalogRef.current.values()]);
+    const next = [...catalogRef.current.values()];
+    if (current.current) rankingCache.current.update(next, current.current);
+    setCatalog(next);
   }, []);
   const [library, setLibrary] = useState<Library | null>(null);
   const [loadError, setLoadError] = useState(false),
@@ -53,6 +66,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     try {
       const value = (await readLibrary()) ?? emptyLibrary();
       cacheMedia(value.catalogEntries);
+      rankingCache.current.update([...catalogRef.current.values()], value);
       current.current = value;
       setLibrary(value);
     } catch {
@@ -62,18 +76,36 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void load();
   }, []);
-  function mutate(change: Mutation): Promise<Library> {
+  function mutate(change: Mutation, undoLabel?: string): Promise<Library> {
     const task = queue.current.then(async () => {
       if (!current.current) throw new Error('Library is still loading');
       setBusy(true);
       try {
-        const changed = change(current.current);
+        const before = current.current;
+        let changed = change(before);
+        if (undoLabel)
+          changed = withUndo(
+            before,
+            changed,
+            undoLabel,
+            `undo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            new Date().toISOString(),
+          );
         const referenced = new Set([
           ...changed.opinions.map((item) => item.mediaId),
           ...changed.logs.map((item) => item.mediaId),
           ...(changed.notes ?? []).map((item) => item.mediaId),
           ...changed.watchlist.map((item) => item.mediaId),
           ...changed.comparisons.flatMap((item) => [item.a, item.b]),
+          ...changed.logDrafts.map((item) => item.mediaId),
+          ...changed.dismissals.map((item) => item.mediaId),
+          ...changed.undoReceipts.flatMap((r) => [
+            ...r.guardedMediaIds,
+            ...(r.patches.watchlist?.keys ?? []),
+            ...(r.patches.notes?.keys ?? []),
+            ...(r.patches.dismissals?.keys ?? []),
+          ]),
+          ...fixtureCatalog.map((m) => m.id),
         ]);
         const next = {
           ...changed,
@@ -82,6 +114,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
           ),
         };
         await writeLibrary(next); // Acknowledge only after durable storage succeeds.
+        rankingCache.current.update([...catalogRef.current.values()], next);
         current.current = next;
         setLibrary(next);
         return next;
@@ -102,26 +135,38 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     setCatalogLoading(true);
     setCatalogError(null);
     const work = async () => {
-      let failed: boolean;
-      try {
-        const preview = await loadPreviewCatalog();
-        cacheMedia(preview.items);
-        failed = preview.items.length < fixtureCatalog.length - 1;
-      } catch {
-        failed = true;
+      let failed = false;
+      const now = Date.now();
+      const stale = (media: Media) =>
+        !media.fetchedAt || now - Date.parse(media.fetchedAt) > 6 * 60 * 60 * 1000;
+      if (fixtureCatalog.some((m) => stale(catalogRef.current.get(m.id) ?? m))) {
+        try {
+          const preview = await loadPreviewCatalog();
+          cacheMedia(preview.items);
+          failed = preview.items.length < fixtureCatalog.length - 1;
+        } catch {
+          failed = true;
+        }
       }
-      const saved = (current.current?.catalogEntries ?? []).filter((media) =>
-        /^[a-f0-9-]{36}$/.test(media.id),
-      );
+      const preferred = new Set([
+        ...(current.current?.watchlist ?? []).map((w) => w.mediaId),
+        ...(current.current?.logs ?? []).slice(-8).map((l) => l.mediaId),
+      ]);
+      const saved = (current.current?.catalogEntries ?? [])
+        .filter((media) => /^[a-f0-9-]{36}$/.test(media.id) && stale(media))
+        .sort((a, b) => Number(preferred.has(b.id)) - Number(preferred.has(a.id)))
+        .slice(0, 8);
+      const refreshed: Media[] = [];
       for (let start = 0; start < saved.length; start += 4) {
         const batch = await Promise.allSettled(
-          saved.slice(start, start + 4).map((media) => loadCatalogDetail(media.id)),
+          saved.slice(start, start + 4).map((m) => loadCatalogDetail(m.id)),
         );
         for (const result of batch) {
-          if (result.status === 'fulfilled') cacheMedia([result.value.media]);
+          if (result.status === 'fulfilled') refreshed.push(result.value.media);
           else failed = true;
         }
       }
+      if (refreshed.length) cacheMedia(refreshed);
       // Refresh referenced metadata on disk without changing opinion revisions or evidence.
       await mutate((state) => state);
       if (failed)
@@ -164,6 +209,12 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       value={{
         library,
         mutate,
+        undo: (id) => mutate((state) => undoMutation(state, id)),
+        rankingState: (kind) => rankingCache.current.get(kind),
+        retryRanking: () => {
+          rankingCache.current.update(catalog, library, true);
+          updateRanks((value) => value + 1);
+        },
         busy,
         catalogLoading,
         catalogError,
@@ -171,7 +222,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
         catalog,
         mediaById: catalogRef.current,
         cacheMedia,
-        snapshot: (kind) => buildSnapshot(catalog, library, kind),
+        snapshot: (kind) => rankingCache.current.get(kind).analysis.snapshot,
       }}
     >
       {children}

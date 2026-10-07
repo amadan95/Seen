@@ -83,7 +83,7 @@ function activeComparisons(opinions, comparisons) {
   }
   return [...latest.values()];
 }
-function buildSnapshot(catalog, library, kind) {
+function analyzeRanking(catalog, library, kind) {
   const media = new Map(catalog.filter((m) => m.kind === kind).map((m) => [m.id, m]));
   const opinions = library.opinions.filter(
     (o) => media.has(o.mediaId) && isEligible(o, media.get(o.mediaId))
@@ -153,48 +153,322 @@ function buildSnapshot(catalog, library, kind) {
     })
   );
   return {
-    kind,
-    sourceRevision: library.revision,
-    modelVersion: MODEL.version,
-    scoreScaleVersion: MODEL.scale,
-    items
+    scores: fit.scores,
+    components: new Map(
+      components.flatMap((component, index) => [...component].map((id) => [id, index]))
+    ),
+    snapshot: {
+      kind,
+      sourceRevision: library.revision,
+      modelVersion: MODEL.version,
+      scoreScaleVersion: MODEL.scale,
+      items
+    }
   };
 }
-function pickComparison(catalog, library, kind, excluded, target) {
-  const snapshot = buildSnapshot(catalog, library, kind);
-  const lookup = new Map(catalog.map((m) => [m.id, m]));
-  const eligible = snapshot.items;
-  if (target && !eligible.some((item) => item.mediaId === target)) return null;
-  const active = new Set(
-    activeComparisons(library.opinions, library.comparisons).map(
-      (c) => [c.a, c.b].sort().join("|")
-    )
+function buildSnapshot(catalog, library, kind) {
+  return analyzeRanking(catalog, library, kind).snapshot;
+}
+function rankingInputKey(catalog, library, kind) {
+  const media = new Map(
+    catalog.filter((item) => item.kind === kind).map((item) => [item.id, item])
   );
-  const focus = eligible.find((i) => i.mediaId === target) ?? eligible.find((i) => i.position === null) ?? [...eligible].sort((a, b) => a.opponents - b.opponents)[0];
-  if (!focus) return null;
-  function candidatesFor(focus2) {
-    const candidates = eligible.filter(
-      (i) => i.mediaId !== focus2.mediaId && !excluded.has([i.mediaId, focus2.mediaId].sort().join("|")) && !active.has([i.mediaId, focus2.mediaId].sort().join("|"))
-    );
-    candidates.sort((a, b) => {
-      const sentiment = library.opinions.find((item) => item.mediaId === focus2.mediaId)?.sentiment;
-      const expected = focus2.rankScore ?? rankScore(sentiment === "liked" ? 1 : sentiment === "disliked" ? -1 : 0);
-      const genres = new Set(lookup.get(focus2.mediaId).genres);
-      const shared = (item) => lookup.get(item.mediaId).genres.filter((genre) => genres.has(genre)).length;
-      const gap = (item) => Math.abs((item.rankScore ?? expected) - expected);
-      return Number(b.rankScore !== null) - Number(a.rankScore !== null) || shared(b) - shared(a) || gap(a) - gap(b) || a.opponents - b.opponents || a.mediaId.localeCompare(b.mediaId);
-    });
-    return candidates;
+  const opinions = library.opinions.filter(
+    (o) => media.has(o.mediaId) && isEligible(o, media.get(o.mediaId))
+  );
+  const ids = new Set(opinions.map((o) => o.mediaId));
+  return JSON.stringify([
+    MODEL.version,
+    MODEL.scale,
+    opinions.map((o) => [o.mediaId, o.sentiment, o.revision]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    activeComparisons(opinions, library.comparisons).filter((c) => ids.has(c.a) && ids.has(c.b)).map((c) => [c.a, c.b, c.aRevision, c.bRevision, c.outcome]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+  ]);
+}
+var RankingCache = class {
+  constructor(fit = analyzeRanking) {
+    this.fit = fit;
   }
-  const opponent = candidatesFor(focus)[0];
-  if (opponent) return [lookup.get(focus.mediaId), lookup.get(opponent.mediaId)];
-  if (target) return null;
-  for (const item of eligible) {
-    if (item.mediaId === focus.mediaId) continue;
-    const other = candidatesFor(item)[0];
-    if (other) return [lookup.get(item.mediaId), lookup.get(other.mediaId)];
+  fit;
+  states = /* @__PURE__ */ new Map();
+  update(catalog, library, retry = false) {
+    for (const kind of ["movie", "tv"]) {
+      const key = rankingInputKey(catalog, library, kind), previous = this.states.get(kind);
+      if (previous?.key === key && (!retry || !previous.error)) continue;
+      try {
+        this.states.set(kind, { key, analysis: this.fit(catalog, library, kind), error: null });
+      } catch {
+        const lookup = new Map(catalog.map((m) => [m.id, m]));
+        const eligible = library.opinions.filter(
+          (o) => lookup.get(o.mediaId)?.kind === kind && isEligible(o, lookup.get(o.mediaId))
+        );
+        const edges = activeComparisons(eligible, library.comparisons);
+        const compared = new Set(edges.flatMap((c) => [c.a, c.b]));
+        const old = previous?.analysis.snapshot;
+        const items = eligible.map((o) => {
+          const confirmed = old?.items.find((item) => item.mediaId === o.mediaId);
+          return compared.has(o.mediaId) && confirmed ? confirmed : {
+            mediaId: o.mediaId,
+            position: null,
+            rankScore: null,
+            opponents: 0,
+            evidence: "unplaced"
+          };
+        }).sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity));
+        let position = 0;
+        const snapshot = {
+          kind,
+          sourceRevision: old?.sourceRevision ?? library.revision,
+          modelVersion: MODEL.version,
+          scoreScaleVersion: MODEL.scale,
+          items: items.map(
+            (item) => item.position === null ? item : { ...item, position: ++position }
+          )
+        };
+        this.states.set(kind, {
+          key,
+          analysis: { snapshot, scores: /* @__PURE__ */ new Map(), components: /* @__PURE__ */ new Map() },
+          error: "Your watch is saved. Ranking could not update. Retry to finish placing it."
+        });
+      }
+    }
+  }
+  get(kind) {
+    const result = this.states.get(kind);
+    if (!result) throw new Error("Rankings are still loading");
+    return result;
+  }
+};
+var PICKER_VERSION = "adaptive-preview-v2";
+var pairKey = (a, b) => [a, b].sort().join("|");
+function seededNumber(value) {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);
+  return (hash >>> 0) / 4294967296;
+}
+function chooseComparison(catalog, library, kind, excluded, target, options = {}) {
+  const analysis = options.analysis ?? analyzeRanking(catalog, library, kind);
+  const eligible = analysis.snapshot.items, lookup = new Map(catalog.map((m) => [m.id, m]));
+  if (target && !eligible.some((item) => item.mediaId === target)) return null;
+  const opinions = new Map(library.opinions.map((o) => [o.mediaId, o]));
+  const active = new Set(
+    activeComparisons(library.opinions, library.comparisons).map((c) => pairKey(c.a, c.b))
+  );
+  const cooling = new Set(
+    library.comparisonCooldowns.filter((c) => {
+      const [a, b] = c.key.split("|");
+      return options.now && c.until > options.now && opinions.get(a)?.revision === c.aRevision && opinions.get(b)?.revision === c.bRevision;
+    }).map((c) => c.key)
+  );
+  const score = (id) => analysis.scores.get(id) ?? (opinions.get(id)?.sentiment === "liked" ? 1 : opinions.get(id)?.sentiment === "disliked" ? -1 : 0);
+  const allowed = (a, b) => a !== b && !excluded.has(pairKey(a, b)) && (options.reconsider || !active.has(pairKey(a, b)) && !cooling.has(pairKey(a, b)));
+  const bridge = (a, b) => analysis.components.get(a) !== analysis.components.get(b);
+  const finish = (a, b, reason) => ({
+    pair: options.seed && seededNumber(`${options.seed}:${options.served ?? 0}:${pairKey(a, b)}`) < 0.5 ? [lookup.get(b), lookup.get(a)] : [lookup.get(a), lookup.get(b)],
+    reason
+  });
+  const priority = (a, b) => {
+    const p = sigmoid(score(a.mediaId) - score(b.mediaId));
+    const coverage = 0.5 / (1 + a.opponents) + 0.5 / (1 + b.opponents);
+    const boundary = [a, b].some((i) => i.position !== null && Math.abs(i.position - 10) <= 2) ? 1 : 0;
+    return 0.65 * 4 * p * (1 - p) + 0.25 * coverage + 0.1 * boundary;
+  };
+  const focusOrder = target ? eligible.filter((i) => i.mediaId === target) : [...eligible].sort(
+    (a, b) => Number(b.position === null) - Number(a.position === null) || a.opponents - b.opponents || a.mediaId.localeCompare(b.mediaId)
+  );
+  const anchors = [...eligible].sort(
+    (a, b) => score(a.mediaId) - score(b.mediaId) || a.mediaId.localeCompare(b.mediaId)
+  );
+  const bridgeTurn = ((options.served ?? 0) + 1) % 5 === 0;
+  for (const bridgeOnly of bridgeTurn ? [true, false] : [false]) {
+    for (const focus of focusOrder.slice(0, target ? 1 : 24)) {
+      const nearby = eligible.filter((i) => allowed(focus.mediaId, i.mediaId)).sort(
+        (a, b) => Math.abs(score(a.mediaId) - score(focus.mediaId)) - Math.abs(score(b.mediaId) - score(focus.mediaId)) || a.mediaId.localeCompare(b.mediaId)
+      );
+      const pool = new Map(nearby.slice(0, 12).map((i) => [i.mediaId, i]));
+      for (let q = 0; q < 8; q++) {
+        const anchor = anchors[Math.floor(q * (anchors.length - 1) / 7)];
+        if (anchor && allowed(focus.mediaId, anchor.mediaId)) pool.set(anchor.mediaId, anchor);
+      }
+      for (const item of nearby.filter((i) => bridge(focus.mediaId, i.mediaId)).slice(0, 4))
+        pool.set(item.mediaId, item);
+      const candidates = [...pool.values()];
+      if (!candidates.length) continue;
+      if (bridgeOnly) {
+        const other = candidates.filter((i) => bridge(focus.mediaId, i.mediaId)).sort(
+          (a, b) => Math.abs(score(a.mediaId) - score(focus.mediaId)) - Math.abs(score(b.mediaId) - score(focus.mediaId)) || a.mediaId.localeCompare(b.mediaId)
+        )[0];
+        if (other) return finish(focus.mediaId, other.mediaId, "component_bridge");
+        continue;
+      }
+      if (target && options.mode !== "refine") {
+        const genres = new Set(lookup.get(target).genres);
+        const shared = (i) => lookup.get(i.mediaId).genres.filter((g) => genres.has(g)).length;
+        candidates.sort(
+          (a, b) => Number(b.position !== null) - Number(a.position !== null) || shared(b) - shared(a) || Math.abs(score(a.mediaId) - score(target)) - Math.abs(score(b.mediaId) - score(target)) || a.mediaId.localeCompare(b.mediaId)
+        );
+      } else
+        candidates.sort(
+          (a, b) => priority(focus, b) - priority(focus, a) || a.mediaId.localeCompare(b.mediaId)
+        );
+      return finish(
+        focus.mediaId,
+        candidates[0].mediaId,
+        target ? "targeted_placement" : "ambiguity_coverage"
+      );
+    }
   }
   return null;
+}
+function pickComparison(catalog, library, kind, excluded, target, options = {}) {
+  return chooseComparison(catalog, library, kind, excluded, target, options)?.pair ?? null;
+}
+
+// packages/domain/src/recommendations.ts
+var RECOMMENDATION_VERSION = "content-preview-v2";
+var names = (m) => [
+  .../* @__PURE__ */ new Set([
+    ...m.directors ?? [],
+    ...m.creators ?? [],
+    ...(m.cast ?? []).slice(0, 5).map((c) => c.name)
+  ])
+];
+var overlap = (a, b) => {
+  const set = new Set(a);
+  return b.filter((value) => set.has(value)).length / Math.max(1, (/* @__PURE__ */ new Set([...a, ...b])).size);
+};
+function recommend(catalog, state, options) {
+  const lookup = new Map(catalog.map((m) => [m.id, m]));
+  const seen = new Set(state.opinions.map((o) => o.mediaId));
+  const dismissed = new Set(state.dismissals.map((d) => d.mediaId));
+  const saved = new Set(state.watchlist.map((w) => w.mediaId));
+  const ranks = new Map(
+    (options.snapshots ?? []).flatMap((s) => s.items.map((i) => [i.mediaId, i]))
+  );
+  const inputs = state.opinions.flatMap((opinion) => {
+    const media = lookup.get(opinion.mediaId);
+    if (!media || !opinion.sentiment || opinion.sentiment === "fine") return [];
+    const rank = ranks.get(media.id);
+    const support = Math.min(1, (rank?.opponents ?? 0) / 5);
+    return [
+      {
+        media,
+        sign: opinion.sentiment === "liked" ? 1 : -1,
+        weight: 1 + 0.1 * support * ((rank?.rankScore ?? 5) / 10)
+      }
+    ];
+  });
+  const preferences = inputs.map((i) => [i.media.id, i.sign, i.weight]);
+  const requestId = `rec-${Math.floor(
+    seededNumber(
+      JSON.stringify([
+        RECOMMENDATION_VERSION,
+        preferences,
+        state.dismissals,
+        options.kind,
+        options.maxRuntime,
+        options.genre,
+        [...options.exclude ?? []].sort(),
+        options.providerIds,
+        options.watchlistOnly,
+        options.seed,
+        options.now?.slice(0, 10),
+        catalog.map((m) => [m.id, m.fetchedAt]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+      ])
+    ) * 4294967296
+  ).toString(36)}`;
+  const date = options.now?.slice(0, 10);
+  const candidates = [...lookup.values()].filter((m) => {
+    if (seen.has(m.id) || dismissed.has(m.id) || options.exclude?.has(m.id)) return false;
+    if (options.kind !== "all" && m.kind !== options.kind) return false;
+    if (options.genre && !m.genres.includes(options.genre)) return false;
+    if (options.watchlistOnly && !saved.has(m.id)) return false;
+    if (m.releaseDate && date && m.releaseDate > date) return false;
+    if (m.catalogStatus && ["Planned", "In Production", "Pilot"].includes(m.catalogStatus))
+      return false;
+    if (m.source === "tmdb" && (!m.releaseDate || !date)) return false;
+    if (options.maxRuntime != null && (m.kind !== "movie" || m.runtimeMinutes === null || m.runtimeMinutes > options.maxRuntime))
+      return false;
+    if (options.providerIds?.length) {
+      const availability = m.availability;
+      if (!availability || availability.region !== "US" || availability.stale || availability.status !== "available")
+        return false;
+      if (!options.now || Date.parse(options.now) - Date.parse(availability.checkedAt) > 6 * 60 * 60 * 1e3 || Date.parse(availability.checkedAt) > Date.parse(options.now))
+        return false;
+      if (!availability.offers.some(
+        (o) => o.type === "subscription" && options.providerIds.includes(o.providerId)
+      ))
+        return false;
+    }
+    return true;
+  }).sort((a, b) => a.id.localeCompare(b.id)).slice(0, 500);
+  const scored = candidates.map((media) => {
+    const signals = inputs.filter((i) => i.media.kind === media.kind);
+    const liked = signals.filter((i) => i.sign > 0), disliked = signals.filter((i) => i.sign < 0);
+    const feature = (seeds, extract) => seeds.reduce((sum, i) => sum + i.weight * overlap(extract(media), extract(i.media)), 0) / Math.max(
+      1,
+      seeds.reduce((sum, i) => sum + i.weight, 0)
+    );
+    const genre = feature(liked, (m) => m.genres), creator = feature(liked, names);
+    let weight = 0, positive = 0;
+    if (liked.some((i) => i.media.genres.length) && media.genres.length) {
+      weight += 0.35;
+      positive += 0.35 * genre;
+    }
+    if (liked.some((i) => names(i.media).length) && names(media).length) {
+      weight += 0.15;
+      positive += 0.15 * creator;
+    }
+    if (options.providerIds?.length) {
+      weight += 0.1;
+      positive += 0.1;
+    }
+    const score = (weight ? positive / weight : 0) - 0.4 * feature(disliked, (m) => m.genres) - 0.2 * feature(disliked, names);
+    const seed = [...liked].sort(
+      (a, b) => overlap(media.genres, b.media.genres) - overlap(media.genres, a.media.genres) || a.media.id.localeCompare(b.media.id)
+    )[0];
+    const creatorSeed = liked.find(
+      (i) => names(media).some((name) => names(i.media).includes(name))
+    );
+    return {
+      media,
+      score,
+      requestId,
+      itemId: `${requestId}:${media.id}`,
+      reasonCode: creatorSeed && creator > genre ? "creator" : seed && genre > 0 ? "genre" : "catalog",
+      sourceMediaId: creatorSeed && creator > genre ? creatorSeed.media.id : seed && genre > 0 ? seed.media.id : null,
+      reason: creatorSeed && creator > genre ? `Shares cast or creators with ${creatorSeed.media.title}` : seed && genre > 0 ? `Because you liked ${seed.media.title}` : media.source === "tmdb" ? "Explore the TMDB catalog" : "Explore the sample catalog"
+    };
+  }).sort(
+    (a, b) => b.score - a.score || seededNumber(`${options.seed}:${a.media.id}`) - seededNumber(`${options.seed}:${b.media.id}`)
+  );
+  const selected = [], remaining = [...scored];
+  const limit = Math.min(50, options.limit ?? 50);
+  while (remaining.length && selected.length < limit) {
+    const explore = selected.length % 5 === 4;
+    remaining.sort((a, b) => {
+      const variety = (i) => Math.max(
+        0,
+        ...selected.map(
+          (s) => 0.15 * overlap(s.media.genres, i.media.genres) + 0.25 * overlap(names(s.media), names(i.media))
+        )
+      );
+      const utility = (i) => (explore ? 0.5 : 1) * i.score - variety(i);
+      return utility(b) - utility(a) || seededNumber(`${options.seed}:${a.media.id}`) - seededNumber(`${options.seed}:${b.media.id}`);
+    });
+    selected.push(remaining.shift());
+  }
+  return { requestId, algorithmVersion: RECOMMENDATION_VERSION, items: selected };
+}
+function dismissRecommendation(state, item, now) {
+  if (state.dismissals.some((d) => d.mediaId === item.media.id)) return state;
+  return {
+    ...state,
+    revision: state.revision + 1,
+    dismissals: [
+      ...state.dismissals,
+      { mediaId: item.media.id, createdAt: now, requestId: item.requestId, itemId: item.itemId }
+    ]
+  };
 }
 
 // packages/domain/src/library.ts
@@ -207,7 +481,14 @@ var emptyLibrary = () => ({
   notes: [],
   comparisons: [],
   watchlist: [],
-  catalogEntries: []
+  catalogEntries: [],
+  dismissals: [],
+  selectedProviders: [],
+  logDrafts: [],
+  comparisonSessions: [],
+  comparisonCooldowns: [],
+  comparisonServeCounts: { movie: 0, tv: 0 },
+  undoReceipts: []
 });
 function saveLog(state, catalog, input, eventId, now) {
   if (state.logs.some((l) => l.id === eventId)) return state;
@@ -240,12 +521,14 @@ function saveLog(state, catalog, input, eventId, now) {
     watchedOn: input.watchedOn,
     historical: input.historical,
     rewatch: input.rewatch,
-    note: input.note
+    note: input.note,
+    recommendation: latest && !input.rewatch ? latest.recommendation : input.rewatch || input.historical || previous ? void 0 : input.recommendation ?? state.watchlist.find((w) => w.mediaId === media.id)?.recommendation
   };
   const createsWatchEvent = media.kind === "movie" || input.sentiment !== null || input.status === "finished" || input.status === "caught_up";
   return {
     ...state,
     revision: state.revision + 1,
+    logDrafts: state.logDrafts.filter((draft) => draft.mediaId !== media.id),
     opinions: [...state.opinions.filter((o) => o.mediaId !== media.id), opinion],
     notes: [
       ...(state.notes ?? []).filter((note) => note.mediaId !== media.id),
@@ -286,13 +569,13 @@ function confirmSeenEnough(state, catalog, mediaId) {
     )
   };
 }
-function setWatchlist(state, mediaId, present, now) {
+function setWatchlist(state, mediaId, present, now, recommendation) {
   const exists = state.watchlist.some((w) => w.mediaId === mediaId);
   if (exists === present) return state;
   return {
     ...state,
     revision: state.revision + 1,
-    watchlist: present ? [...state.watchlist, { mediaId, addedAt: now, priority: 0 }] : state.watchlist.filter((w) => w.mediaId !== mediaId)
+    watchlist: present ? [...state.watchlist, { mediaId, addedAt: now, priority: 0, recommendation }] : state.watchlist.filter((w) => w.mediaId !== mediaId)
   };
 }
 function setPriority(state, mediaId, priority) {
@@ -338,17 +621,7 @@ function filterCatalog(catalog, filter, query = "") {
   );
 }
 function discoveryPicks(catalog, state) {
-  const seen = new Set(state.opinions.map((o) => o.mediaId));
-  const liked = state.opinions.filter((o) => o.sentiment === "liked").map((o) => catalog.find((m) => m.id === o.mediaId));
-  return catalog.filter((m) => !seen.has(m.id)).map((media) => {
-    const source = liked.find(
-      (m) => m && m.kind === media.kind && m.genres.some((g) => media.genres.includes(g))
-    );
-    return {
-      media,
-      reason: source ? `Because you liked ${source.title}` : media.source === "tmdb" ? "From the TMDB catalog" : "From the sample catalog"
-    };
-  });
+  return recommend(catalog, state, { kind: "all", seed: "home" }).items;
 }
 
 // packages/domain/src/availability.ts
@@ -389,25 +662,257 @@ function groupViewingProviders(offers, group) {
   }
   return [...providers.values()];
 }
+
+// packages/domain/src/recovery.ts
+var collections = [
+  "opinions",
+  "logs",
+  "notes",
+  "comparisons",
+  "watchlist",
+  "dismissals"
+];
+var identity = (row) => row.id ?? row.mediaId;
+var canonical = (rows) => JSON.stringify([...rows].sort((a, b) => identity(a).localeCompare(identity(b))));
+function withUndo(before, after, label, id, now) {
+  let patches = {};
+  for (const collection of collections) {
+    const a = new Map(before[collection].map((r) => [identity(r), r]));
+    const b = new Map(after[collection].map((r) => [identity(r), r]));
+    const keys = [.../* @__PURE__ */ new Set([...a.keys(), ...b.keys()])].filter(
+      (key) => JSON.stringify(a.get(key)) !== JSON.stringify(b.get(key))
+    );
+    if (keys.length)
+      patches = {
+        ...patches,
+        [collection]: {
+          keys,
+          before: before[collection].filter((r) => keys.includes(identity(r))),
+          after: after[collection].filter((r) => keys.includes(identity(r)))
+        }
+      };
+  }
+  if (!Object.keys(patches).length) return after;
+  const guardedMediaIds = [
+    .../* @__PURE__ */ new Set([
+      ...patches.opinions?.keys ?? [],
+      ...(patches.logs?.before ?? []).map((l) => l.mediaId),
+      ...(patches.logs?.after ?? []).map((l) => l.mediaId)
+    ])
+  ];
+  const guardedPairKeys = [
+    ...new Set(
+      [...patches.comparisons?.before ?? [], ...patches.comparisons?.after ?? []].map(
+        (c) => pairKey(c.a, c.b)
+      )
+    )
+  ];
+  const opinionIds = /* @__PURE__ */ new Set([
+    ...guardedMediaIds,
+    ...(patches.comparisons?.after ?? []).flatMap((c) => [c.a, c.b])
+  ]);
+  const receipt = {
+    id,
+    label,
+    createdAt: now,
+    patches,
+    guardedMediaIds,
+    guardedPairKeys,
+    opinionGuards: after.opinions.filter((o) => opinionIds.has(o.mediaId)),
+    comparisonGuards: after.comparisons.filter(
+      (c) => guardedMediaIds.includes(c.a) || guardedMediaIds.includes(c.b) || guardedPairKeys.includes(pairKey(c.a, c.b))
+    )
+  };
+  return { ...after, undoReceipts: [...after.undoReceipts, receipt].slice(-8) };
+}
+function undoMutation(state, id) {
+  const receipt = state.undoReceipts.find((r) => r.id === id);
+  if (!receipt) throw new Error("This undo is no longer available. Edit the title instead.");
+  const conflict = () => {
+    throw new Error(
+      "This title changed since that action. Undo the newer action first, or edit the title."
+    );
+  };
+  for (const guard of receipt.opinionGuards) {
+    if (JSON.stringify(state.opinions.find((o) => o.mediaId === guard.mediaId)) !== JSON.stringify(guard))
+      conflict();
+  }
+  const evidence = state.comparisons.filter(
+    (c) => receipt.guardedMediaIds.includes(c.a) || receipt.guardedMediaIds.includes(c.b) || receipt.guardedPairKeys.includes(pairKey(c.a, c.b))
+  );
+  if (canonical(evidence) !== canonical(receipt.comparisonGuards)) conflict();
+  let restored = state;
+  for (const collection of collections)
+    restored = restoreCollection(restored, collection, receipt, conflict);
+  return {
+    ...restored,
+    revision: state.revision + 1,
+    undoReceipts: state.undoReceipts.filter((r) => r.id !== id),
+    // Offered pairs are rebuilt from current revisions when reopening.
+    comparisonSessions: state.comparisonSessions.map((s) => ({
+      ...s,
+      offered: null,
+      inputKey: "",
+      steps: Math.max(
+        0,
+        s.steps - (s.excluded.some((key) => receipt.guardedPairKeys.includes(key)) ? 1 : 0)
+      ),
+      excluded: s.excluded.filter((key) => !receipt.guardedPairKeys.includes(key))
+    }))
+  };
+}
+function restoreCollection(state, collection, receipt, conflict) {
+  const patch = receipt.patches[collection];
+  if (!patch) return state;
+  if (canonical(state[collection].filter((r) => patch.keys.includes(identity(r)))) !== canonical(patch.after))
+    conflict();
+  const originals = new Map(patch.before.map((r) => [identity(r), r]));
+  const present = new Set(state[collection].map(identity));
+  const rows = state[collection].flatMap((r) => {
+    if (!patch.keys.includes(identity(r))) return [r];
+    const original = originals.get(identity(r));
+    return original ? [original] : [];
+  });
+  return {
+    ...state,
+    [collection]: [...rows, ...patch.before.filter((r) => !present.has(identity(r)))]
+  };
+}
+
+// packages/domain/src/sessions.ts
+function openComparisonSession(state, kind, target, mode, id) {
+  const existing = state.comparisonSessions.find(
+    (s) => s.kind === kind && s.target === target && s.mode === mode && (mode === "placement" || s.steps < 3)
+  );
+  if (existing) return state;
+  const session = {
+    id,
+    kind,
+    target,
+    mode,
+    seed: id,
+    steps: 0,
+    served: 0,
+    excluded: [],
+    offered: null,
+    inputKey: "",
+    reason: ""
+  };
+  return { ...state, comparisonSessions: [...state.comparisonSessions, session].slice(-12) };
+}
+function offerComparison(state, catalog, sessionId, analysis, now) {
+  const session = state.comparisonSessions.find((s) => s.id === sessionId);
+  if (!session || session.mode === "refine" && session.steps >= 3) return state;
+  const key = rankingInputKey(catalog, state, session.kind);
+  if (session.offered && session.inputKey === key) return state;
+  const choice = chooseComparison(
+    catalog,
+    state,
+    session.kind,
+    new Set(session.excluded),
+    session.target,
+    {
+      analysis,
+      now,
+      seed: session.seed,
+      served: state.comparisonServeCounts[session.kind],
+      mode: session.mode
+    }
+  );
+  if (!choice && !session.offered && session.inputKey === key) return state;
+  return {
+    ...state,
+    comparisonServeCounts: {
+      ...state.comparisonServeCounts,
+      [session.kind]: state.comparisonServeCounts[session.kind] + (choice ? 1 : 0)
+    },
+    comparisonSessions: state.comparisonSessions.map(
+      (s) => s.id !== sessionId ? s : {
+        ...s,
+        offered: choice ? [choice.pair[0].id, choice.pair[1].id] : null,
+        inputKey: key,
+        served: s.served + (choice ? 1 : 0),
+        reason: choice?.reason ?? "exhausted"
+      }
+    )
+  };
+}
+function answerSession(state, catalog, sessionId, answer, eventId, now) {
+  const session = state.comparisonSessions.find((s) => s.id === sessionId);
+  if (!session?.offered || session.inputKey !== rankingInputKey(catalog, state, session.kind))
+    throw new Error("This comparison changed. Refresh the pair and try again.");
+  const [a, b] = session.offered, key = pairKey(a, b);
+  const answered = answerComparison(state, catalog, a, b, answer, eventId);
+  const canonicalIds = [a, b].sort();
+  const cooldown = {
+    key,
+    until: new Date(Date.parse(now) + 24 * 60 * 60 * 1e3).toISOString(),
+    aRevision: state.opinions.find((o) => o.mediaId === canonicalIds[0]).revision,
+    bRevision: state.opinions.find((o) => o.mediaId === canonicalIds[1]).revision
+  };
+  return {
+    ...answered,
+    comparisonCooldowns: answer === "skip" || answer === "undecided" ? [
+      ...state.comparisonCooldowns.filter((c) => c.until > now && c.key !== key),
+      cooldown
+    ].slice(-200) : state.comparisonCooldowns,
+    comparisonSessions: state.comparisonSessions.map(
+      (s) => s.id !== sessionId ? s : {
+        ...s,
+        steps: s.steps + 1,
+        excluded: [...s.excluded, key],
+        offered: null,
+        inputKey: ""
+      }
+    )
+  };
+}
+function retrySkippedPairs(state, sessionId) {
+  const session = state.comparisonSessions.find((s) => s.id === sessionId);
+  if (!session) return state;
+  return {
+    ...state,
+    comparisonCooldowns: state.comparisonCooldowns.filter((c) => !session.excluded.includes(c.key)),
+    comparisonSessions: state.comparisonSessions.map(
+      (s) => s.id === sessionId ? { ...s, excluded: [], offered: null, inputKey: "" } : s
+    )
+  };
+}
 export {
   MODEL,
+  PICKER_VERSION,
+  RECOMMENDATION_VERSION,
+  RankingCache,
   activeComparisons,
+  analyzeRanking,
   answerComparison,
+  answerSession,
   buildSnapshot,
+  chooseComparison,
   confirmSeenEnough,
   discoveryPicks,
+  dismissRecommendation,
   emptyLibrary,
   filterCatalog,
   fitBradleyTerry,
   groupViewingProviders,
   isEligible,
+  offerComparison,
+  openComparisonSession,
+  pairKey,
   pickComparison,
   providerCompany,
   rankScore,
+  rankingInputKey,
+  recommend,
   removeHistory,
+  retrySkippedPairs,
   saveLog,
+  seededNumber,
   setPriority,
   setTitleNote,
   setWatchlist,
-  sigmoid
+  sigmoid,
+  undoMutation,
+  withUndo
 };

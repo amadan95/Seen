@@ -29,6 +29,28 @@ function setup(handler: (url: URL) => Response, now?: () => number) {
   return { adapter, urls };
 }
 describe('TMDB boundary', () => {
+  it('checks runtime without requesting credits, videos or providers', async () => {
+    const { adapter, urls } = setup((url) =>
+      Response.json(
+        url.pathname.endsWith('configuration')
+          ? config
+          : url.pathname.includes('/search/')
+            ? { results: [movie], total_pages: 1 }
+            : { ...movie, runtime: 87, release_date: '2009-01-01' },
+      ),
+    );
+    const page = await adapter.search({ ...query, kind: 'movie', maxRuntime: 90 });
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({
+      runtimeMinutes: 87,
+      releaseDate: '2009-01-01',
+      metadataComplete: false,
+    });
+    const detail = urls.find((url) => url.pathname.endsWith('/movie/11'));
+    expect(detail).toBeDefined();
+    expect(detail!.searchParams.has('append_to_response')).toBe(false);
+    expect(urls.some((url) => url.pathname.includes('watch/providers'))).toBe(false);
+  });
   it('keeps movie/TV supplier ID namespaces separate and unknown dates/runtime null', async () => {
     const { adapter } = setup((url) =>
       Response.json(

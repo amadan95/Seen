@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { TmdbCatalog, CatalogError, previewTitles } from '@seen/catalog';
 import { catalogQuerySchema } from '@seen/contracts/catalog';
 import type { MediaKind } from '@seen/contracts';
+import { isLocalCatalogOrigin } from './catalog-local-policy';
 
 try {
   process.loadEnvFile(resolve('supabase/functions/.env'));
@@ -82,7 +83,7 @@ const server = createServer(async (request, response) => {
   }
   const origin = request.headers.origin;
   if (origin) {
-    const allowed = /^http:\/\/(localhost|127\.0\.0\.1):808[1-3]$/.test(origin);
+    const allowed = isLocalCatalogOrigin(origin);
     if (!allowed) {
       reply(403, {
         code: 'forbidden',

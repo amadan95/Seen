@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, View, useWindowDimensions } from 'react-native';
 import { sampleLibrary } from '@seen/fixtures';
-import { discoveryPicks } from '@seen/domain';
+import { recommend } from '@seen/domain';
 import { useLibrary } from '../../src/local/LibraryProvider';
 import {
   Body,
@@ -71,11 +71,23 @@ export default function Home() {
         </Body>
       </Screen>
     );
-  const picks = discoveryPicks(
-      catalogUrl ? catalog.filter((media) => media.id !== 'unknown') : catalog,
-      library,
-    ),
-    unplaced = snapshot('movie').items.filter((i) => i.position === null);
+  const servedAt = new Date().toISOString();
+  const picks = recommend(
+    catalogUrl ? catalog.filter((media) => media.id !== 'unknown') : catalog,
+    library,
+    {
+      kind: 'all',
+      seed: 'home',
+      now: servedAt,
+      snapshots: [snapshot('movie'), snapshot('tv')],
+      limit: 6,
+    },
+  ).items;
+  const scopes = (['movie', 'tv'] as const).map((kind) => ({
+    kind,
+    eligible: snapshot(kind).items,
+    unplaced: snapshot(kind).items.filter((i) => i.position === null),
+  }));
   const recent = [...library.logs].reverse().slice(0, 3);
   const featured = picks[0];
   const rail = picks.slice(1, 6);
@@ -102,7 +114,15 @@ export default function Home() {
             width={featureWidth}
             height={fontScale > 1.4 ? 270 : 230}
             onPress={() =>
-              router.push({ pathname: '/media/[id]', params: { id: featured.media.id } })
+              router.push({
+                pathname: '/media/[id]',
+                params: {
+                  id: featured.media.id,
+                  requestId: featured.requestId,
+                  itemId: featured.itemId,
+                  servedAt,
+                },
+              })
             }
             accessibilityLabel={`Explore ${featured.media.title}. ${featured.reason}`}
           />
@@ -114,7 +134,15 @@ export default function Home() {
             label="View title"
             secondary
             onPress={() =>
-              router.push({ pathname: '/media/[id]', params: { id: featured.media.id } })
+              router.push({
+                pathname: '/media/[id]',
+                params: {
+                  id: featured.media.id,
+                  requestId: featured.requestId,
+                  itemId: featured.itemId,
+                  servedAt,
+                },
+              })
             }
           />
         </View>
@@ -124,8 +152,8 @@ export default function Home() {
         action={
           <IconButton
             name="chevron"
-            label="Discover more titles"
-            onPress={() => router.push('/(tabs)/discover')}
+            label="Choose tonight’s watch"
+            onPress={() => router.push('/tonight')}
           />
         }
       >
@@ -135,9 +163,16 @@ export default function Home() {
           contentContainerStyle={{ gap: 14 }}
         >
           {rail.map((p) => (
-            <PosterTile key={p.media.id} media={p.media} reason={p.reason} width={158} />
+            <PosterTile
+              key={p.media.id}
+              media={p.media}
+              reason={p.reason}
+              width={158}
+              recommendation={{ requestId: p.requestId, itemId: p.itemId, servedAt }}
+            />
           ))}
         </ScrollView>
+        <Button label="Choose from three picks" secondary onPress={() => router.push('/tonight')} />
         {!picks.length && (
           <EmptyState
             title="You’ve explored this catalog"
@@ -157,24 +192,30 @@ export default function Home() {
             />
           }
         >
-          {library.opinions.length >= 2 ? (
-            <View style={{ gap: 12 }}>
-              <Body muted style={s.caption}>
-                {unplaced.length
-                  ? `${unplaced.length} movie${unplaced.length === 1 ? '' : 's'} waiting to find a place.`
-                  : 'Your list is up to date.'}
-              </Body>
-              <Button
-                label="Refine your movies"
-                secondary
-                icon="rank"
-                onPress={() => router.push({ pathname: '/compare', params: { kind: 'movie' } })}
-              />
-            </View>
-          ) : (
+          {scopes
+            .filter((scope) => scope.eligible.length >= 2)
+            .map((scope) => (
+              <View key={scope.kind} style={{ gap: 8 }}>
+                <Body muted style={s.caption}>
+                  {scope.kind === 'movie' ? 'Movies' : 'TV'} ·{' '}
+                  {scope.unplaced.length
+                    ? `${scope.unplaced.length} waiting to find a place`
+                    : 'Refine whenever you like'}
+                </Body>
+                <Button
+                  label={scope.kind === 'movie' ? 'Refine your movies' : 'Refine your TV'}
+                  secondary
+                  icon="rank"
+                  onPress={() =>
+                    router.push({ pathname: '/compare', params: { kind: scope.kind } })
+                  }
+                />
+              </View>
+            ))}
+          {!scopes.some((scope) => scope.eligible.length >= 2) && (
             <EmptyState
               title="Your list starts with a watch"
-              message="Log two movies you’ve seen to try your first comparison."
+              message="Log two movies or two TV shows you have seen enough of to try a comparison."
               action={
                 <Button label="Find a title" secondary onPress={() => router.push('/search')} />
               }

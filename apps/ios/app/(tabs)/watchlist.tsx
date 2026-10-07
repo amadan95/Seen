@@ -18,6 +18,7 @@ import {
   Segments,
   s,
 } from '../../src/components/ui';
+import { UndoActions } from '../../src/components/UndoActions';
 import { PosterTile } from '../../src/components/Poster';
 
 export default function Watchlist() {
@@ -28,6 +29,7 @@ export default function Watchlist() {
     [kind, setKind] = useState<MediaKind | 'all'>('all'),
     [sort, setSort] = useState('added'),
     [short, setShort] = useState(false),
+    [editingPriority, setEditingPriority] = useState<string | null>(null),
     [error, setError] = useState<string | null>(null);
   const items = library.watchlist
     .filter((i) => {
@@ -74,7 +76,9 @@ export default function Watchlist() {
                 if (value === 'tv') setShort(false);
               }}
             />
-            <Disclosure title="Sort & filters">
+            <Disclosure
+              title={`Sort & filters · ${sort === 'added' ? 'Recent' : sort === 'priority' ? 'Priority' : 'Title'}${short ? ' · Under 2 hours' : ''}`}
+            >
               <Segments
                 options={[
                   { value: 'added', label: 'Recent' },
@@ -100,6 +104,7 @@ export default function Watchlist() {
               </View>
             </Disclosure>
             <InlineError message={error} />
+            <UndoActions />
           </View>
         }
         renderItem={({ item }) => (
@@ -116,8 +121,10 @@ export default function Watchlist() {
                 onPress={() => {
                   if (!busy)
                     change(() =>
-                      mutate((state) =>
-                        setWatchlist(state, item.mediaId, false, new Date().toISOString()),
+                      mutate(
+                        (state) =>
+                          setWatchlist(state, item.mediaId, false, new Date().toISOString()),
+                        'watchlist removal',
                       ),
                     );
                 }}
@@ -133,15 +140,33 @@ export default function Watchlist() {
                   }
                   selected={item.priority > 0}
                   icon="star"
-                  onPress={() => {
-                    if (!busy)
-                      change(() =>
-                        mutate((state) =>
-                          setPriority(state, item.mediaId, (item.priority + 1) % 3),
-                        ),
-                      );
-                  }}
+                  onPress={() =>
+                    setEditingPriority(editingPriority === item.mediaId ? null : item.mediaId)
+                  }
                 />
+                {editingPriority === item.mediaId && (
+                  <View style={{ gap: 6, marginTop: 8 }}>
+                    {[
+                      { value: 0, label: 'No priority' },
+                      { value: 1, label: 'Interested' },
+                      { value: 2, label: 'Watch next' },
+                    ].map((option) => (
+                      <Chip
+                        key={option.value}
+                        label={option.label}
+                        selected={item.priority === option.value}
+                        onPress={() => {
+                          if (!busy) {
+                            change(() =>
+                              mutate((state) => setPriority(state, item.mediaId, option.value)),
+                            );
+                            setEditingPriority(null);
+                          }
+                        }}
+                      />
+                    ))}
+                  </View>
+                )}
               </View>
             </View>
           </View>
@@ -156,7 +181,17 @@ export default function Watchlist() {
                 : 'Save a movie or show from Discover. It stays here until you log it or remove it.'
             }
             action={
-              <Button label="Discover a title" onPress={() => router.push('/(tabs)/discover')} />
+              library.watchlist.length ? (
+                <Button
+                  label="Clear filters"
+                  onPress={() => {
+                    setKind('all');
+                    setShort(false);
+                  }}
+                />
+              ) : (
+                <Button label="Discover a title" onPress={() => router.push('/(tabs)/discover')} />
+              )
             }
           />
         }

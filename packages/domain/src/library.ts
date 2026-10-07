@@ -5,8 +5,10 @@ import type {
   MediaKind,
   Sentiment,
   TvStatus,
+  RecommendationContext,
 } from '@seen/contracts';
 import { isEligible } from './ranking.ts';
+import { recommend } from './recommendations.ts';
 
 export const emptyLibrary = (): Library => ({
   schemaVersion: 1,
@@ -18,6 +20,13 @@ export const emptyLibrary = (): Library => ({
   comparisons: [],
   watchlist: [],
   catalogEntries: [],
+  dismissals: [],
+  selectedProviders: [],
+  logDrafts: [],
+  comparisonSessions: [],
+  comparisonCooldowns: [],
+  comparisonServeCounts: { movie: 0, tv: 0 },
+  undoReceipts: [],
 });
 export interface LogInput {
   mediaId: string;
@@ -28,6 +37,7 @@ export interface LogInput {
   historical: boolean;
   rewatch: boolean;
   note: string;
+  recommendation?: RecommendationContext;
 }
 export function saveLog(
   state: Library,
@@ -73,6 +83,13 @@ export function saveLog(
     historical: input.historical,
     rewatch: input.rewatch,
     note: input.note,
+    recommendation:
+      latest && !input.rewatch
+        ? latest.recommendation
+        : input.rewatch || input.historical || previous
+          ? undefined
+          : (input.recommendation ??
+            state.watchlist.find((w) => w.mediaId === media.id)?.recommendation),
   };
   const createsWatchEvent =
     media.kind === 'movie' ||
@@ -82,6 +99,7 @@ export function saveLog(
   return {
     ...state,
     revision: state.revision + 1,
+    logDrafts: state.logDrafts.filter((draft) => draft.mediaId !== media.id),
     opinions: [...state.opinions.filter((o) => o.mediaId !== media.id), opinion],
     notes: [
       ...(state.notes ?? []).filter((note) => note.mediaId !== media.id),
@@ -140,6 +158,7 @@ export function setWatchlist(
   mediaId: string,
   present: boolean,
   now: string,
+  recommendation?: RecommendationContext,
 ): Library {
   const exists = state.watchlist.some((w) => w.mediaId === mediaId);
   if (exists === present) return state;
@@ -147,7 +166,7 @@ export function setWatchlist(
     ...state,
     revision: state.revision + 1,
     watchlist: present
-      ? [...state.watchlist, { mediaId, addedAt: now, priority: 0 }]
+      ? [...state.watchlist, { mediaId, addedAt: now, priority: 0, recommendation }]
       : state.watchlist.filter((w) => w.mediaId !== mediaId),
   };
 }
@@ -233,23 +252,5 @@ export function discoveryPicks(
   catalog: Media[],
   state: Library,
 ): { media: Media; reason: string }[] {
-  const seen = new Set(state.opinions.map((o) => o.mediaId));
-  const liked = state.opinions
-    .filter((o) => o.sentiment === 'liked')
-    .map((o) => catalog.find((m) => m.id === o.mediaId)!);
-  return catalog
-    .filter((m) => !seen.has(m.id))
-    .map((media) => {
-      const source = liked.find(
-        (m) => m && m.kind === media.kind && m.genres.some((g) => media.genres.includes(g)),
-      );
-      return {
-        media,
-        reason: source
-          ? `Because you liked ${source.title}`
-          : media.source === 'tmdb'
-            ? 'From the TMDB catalog'
-            : 'From the sample catalog',
-      };
-    });
+  return recommend(catalog, state, { kind: 'all', seed: 'home' }).items;
 }

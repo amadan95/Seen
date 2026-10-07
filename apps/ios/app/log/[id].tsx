@@ -1,14 +1,14 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Switch, TextInput, View } from 'react-native';
+import { AppState, Switch, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import type { Library, Sentiment, TvStatus } from '@seen/contracts';
+import { recommendationContextSchema } from '@seen/contracts';
+import type { LogDraft, Sentiment, TvStatus } from '@seen/contracts';
 import { saveLog } from '@seen/domain';
 import { useLibrary } from '../../src/local/LibraryProvider';
 import {
   Body,
   Button,
-  Chip,
   EmptyState,
   Heading,
   InlineError,
@@ -16,30 +16,97 @@ import {
   Segments,
   s,
 } from '../../src/components/ui';
+import { UndoActions } from '../../src/components/UndoActions';
 import { Poster } from '../../src/components/Poster';
 import { Icon } from '../../src/components/Icon';
 import { colors } from '../../src/design/tokens';
 
 export default function LogScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>(),
+  const {
+      id,
+      historical: historicalParam,
+      requestId,
+      itemId,
+      servedAt,
+    } = useLocalSearchParams<{
+      id: string;
+      historical?: string;
+      requestId?: string;
+      itemId?: string;
+      servedAt?: string;
+    }>(),
     { library, mutate, busy, catalog, mediaById } = useLibrary(),
     media = mediaById.get(id);
   const opinion = library.opinions.find((o) => o.mediaId === id),
-    latest = [...library.logs].reverse().find((l) => l.mediaId === id);
+    latest = [...library.logs].reverse().find((l) => l.mediaId === id),
+    draft = library.logDrafts.find((d) => d.mediaId === id);
   const [sentiment, setSentiment] = useState<Sentiment | null>(opinion?.sentiment ?? null),
-    [status, setStatus] = useState<TvStatus>(opinion?.status ?? 'watching');
-  const [enough, setEnough] = useState(opinion?.seenEnough ?? false),
-    [details, setDetails] = useState(false),
-    [historical, setHistorical] = useState(latest?.historical ?? false);
-  const [rewatch, setRewatch] = useState(false),
-    [date, setDate] = useState(latest?.watchedOn ?? ''),
+    [status, setStatus] = useState<TvStatus>(draft?.status ?? opinion?.status ?? 'watching');
+  const [enough, setEnough] = useState(draft?.seenEnough ?? opinion?.seenEnough ?? false),
+    [details, setDetails] = useState(Boolean(draft)),
+    [historical, setHistorical] = useState(
+      draft?.historical ?? latest?.historical ?? historicalParam === 'true',
+    );
+  const [rewatch, setRewatch] = useState(draft?.rewatch ?? false),
+    [date, setDate] = useState(draft?.watchedOn ?? latest?.watchedOn ?? ''),
     [note, setNote] = useState(
-      (library.notes ?? []).find((item) => item.mediaId === id)?.text ?? latest?.note ?? '',
+      draft?.note ??
+        (library.notes ?? []).find((item) => item.mediaId === id)?.text ??
+        latest?.note ??
+        '',
     );
   const [saved, setSaved] = useState(false),
-    [error, setError] = useState<string | null>(null),
-    [undo, setUndo] = useState<{ before: Library; revision: number } | null>(null);
-  const saving = useRef(false);
+    [error, setError] = useState<string | null>(null);
+  const saving = useRef(false),
+    savedRef = useRef(false);
+  const draftValue: LogDraft = {
+    mediaId: id,
+    status,
+    seenEnough: enough,
+    watchedOn: date,
+    historical,
+    rewatch,
+    note,
+  };
+  const draftRef = useRef(draftValue);
+  draftRef.current = draftValue;
+  const originalDraft = useRef(JSON.stringify(draftValue));
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  async function preserveDraft() {
+    if (
+      saving.current ||
+      savedRef.current ||
+      JSON.stringify(draftRef.current) === originalDraft.current
+    )
+      return;
+    const value = draftRef.current;
+    await mutate((state) => ({
+      ...state,
+      logDrafts: [...state.logDrafts.filter((d) => d.mediaId !== id), value],
+    }));
+    originalDraft.current = JSON.stringify(value);
+  }
+  useEffect(() => {
+    savedRef.current = saved;
+    if (saved) return;
+    draftTimer.current = setTimeout(() => {
+      void preserveDraft().catch(() =>
+        setError('Your draft could not be saved. Keep this screen open and try again.'),
+      );
+    }, 400);
+    return () => {
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+    };
+  }, [status, enough, date, historical, rewatch, note, saved]);
+  useEffect(() => {
+    const listener = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') void preserveDraft().catch(() => undefined);
+    });
+    return () => {
+      listener.remove();
+      void preserveDraft().catch(() => undefined);
+    };
+  }, []);
   if (!media)
     return (
       <Screen inStack>
@@ -50,30 +117,34 @@ export default function LogScreen() {
     if (!media || busy || saving.current) return;
     saving.current = true;
     setError(null);
-    let before: Library | undefined;
     try {
-      const next = await mutate((state) => {
-        before = state;
-        return saveLog(
-          state,
-          catalog,
-          {
-            mediaId: id,
-            sentiment: value,
-            status: media.kind === 'tv' ? status : null,
-            seenEnough: media.kind === 'movie' || enough,
-            watchedOn: date || null,
-            historical,
-            rewatch,
-            note,
-          },
-          `log-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          new Date().toISOString(),
-        );
-      });
+      await mutate(
+        (state) =>
+          saveLog(
+            state,
+            catalog,
+            {
+              mediaId: id,
+              sentiment: value,
+              status: media.kind === 'tv' ? status : null,
+              seenEnough: media.kind === 'movie' || enough,
+              watchedOn: date || null,
+              historical,
+              rewatch,
+              note,
+              recommendation: recommendationContextSchema.safeParse({ requestId, itemId, servedAt })
+                .success
+                ? recommendationContextSchema.parse({ requestId, itemId, servedAt })
+                : undefined,
+            },
+            `log-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            new Date().toISOString(),
+          ),
+        'saved watch',
+      );
       setSentiment(value);
       setSaved(true);
-      setUndo({ before: before!, revision: next.revision });
+      savedRef.current = true;
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
         () => undefined,
       );
@@ -86,20 +157,6 @@ export default function LogScreen() {
       setError(e instanceof Error ? e.message : 'Could not save. Try again.');
     } finally {
       saving.current = false;
-    }
-  }
-  async function undoSave() {
-    if (!undo) return;
-    try {
-      await mutate((state) => {
-        if (state.revision !== undo.revision)
-          throw new Error('Your library changed. Edit this log to make another change.');
-        return { ...undo.before, revision: state.revision + 1 };
-      });
-      setSaved(false);
-      setUndo(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Undo failed. Try again.');
     }
   }
   return (
@@ -188,13 +245,18 @@ export default function LogScreen() {
         </Body>
       )}
       <InlineError message={error} />
+      <UndoActions />
+      {draft && !saved && (
+        <Body muted style={s.caption}>
+          Your unfinished details were restored. They are a draft until you save your watch.
+        </Body>
+      )}
       {saved && (
         <View style={[s.row, { padding: 14, backgroundColor: colors.surface, borderRadius: 12 }]}>
           <Icon name="check" color={colors.success} />
           <Body accessibilityLiveRegion="polite" style={{ flex: 1 }}>
             Saved on this device
           </Body>
-          {undo && <Chip label="Undo" selected={false} onPress={() => void undoSave()} />}
         </View>
       )}
       <Button
@@ -277,7 +339,16 @@ export default function LogScreen() {
           }
         />
       )}
-      <Button label="Done" secondary onPress={() => router.back()} />
+      <Button
+        label="Done"
+        secondary
+        onPress={() => {
+          if (draftTimer.current) clearTimeout(draftTimer.current);
+          void preserveDraft()
+            .then(() => router.back())
+            .catch(() => setError('Your draft could not be saved. Try again before closing.'));
+        }}
+      />
       <Body muted style={[s.caption, { textAlign: 'center' }]}>
         {saved
           ? 'Your watch is saved. Comparisons place it in your ranking.'

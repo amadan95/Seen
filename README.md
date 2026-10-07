@@ -21,7 +21,7 @@ The web target is a development aid for checking the shared native screens, not 
 
 ## Live catalog locally
 
-Put `TMDB_API_KEY=your-key` in `supabase/functions/.env` (gitignored). A v3 API key or API Read Access Token is supported. Copy `apps/ios/.env.example` to `apps/ios/.env` to enable the public loopback address in development builds. Start the bridge in a separate terminal, then restart Metro:
+Put `TMDB_API_KEY=your-key` in `supabase/functions/.env` (gitignored). A v3 API key or API Read Access Token is supported. Copy `apps/ios/.env.example` to `apps/ios/.env` to enable the public loopback address in development builds. Use a **Debug/development** simulator build for live data. A Release build intentionally disables this local bridge and uses cached/sample data. Keep the bridge and Metro running in separate terminals:
 
 ```sh
 pnpm catalog:dev
@@ -31,7 +31,7 @@ pnpm dev:simulator
 
 Discover defaults to **Live catalog** when configured and also offers **Sample catalog**. Live search is debounced, paginated, adult-excluded and separated by format; hard runtime filters hydrate movie details and exclude unknown durations. Detail loads real metadata/posters; log/watchlist/compare work with retained title metadata after an app restart. Keep both sample and live library data local; there is no automatic migration to production.
 
-The bridge binds only to `127.0.0.1:8787`, for the iOS Simulator and local web preview. It is disabled in release bundles and must not be deployed or exposed on a network. A physical iPhone needs a separately configured authorized backend. `.seen-dev/identities.json` persists only namespaced supplier-to-UUID mappings; do not delete it while using a saved local library. Upstream caches are bounded and held in memory, with stale data explicitly labeled. Production catalog tables, distributed limits/cache expiry, production people/catalog/provider services and supplier launch approvals remain task 04 onward. Local detail hydration includes credits/videos and JustWatch-powered US provider summaries, with attribution, checked time, cache labels, and safe source links. Existing sample title IDs stay intact while their artwork and metadata refresh. See [the continuation handoff](docs/handoffs/local-catalog-native.md).
+The bridge binds only to `127.0.0.1:8787`, for the iOS Simulator and local web preview. Browser origins are limited to localhost/127.0.0.1 on ports 8081–8083 and 8092. It is disabled in release bundles and must not be deployed or exposed on a network. A physical iPhone needs a separately configured authorized backend. `.seen-dev/identities.json` persists only namespaced supplier-to-UUID mappings; do not delete it while using a saved local library. Upstream caches are bounded and held in memory, with stale data explicitly labeled. Production catalog tables, distributed limits/cache expiry, production people/catalog/provider services and supplier launch approvals remain task 04 onward. Local detail hydration includes credits/videos and JustWatch-powered US provider summaries, with attribution, checked time, cache labels, and safe source links. Existing sample title IDs stay intact while their artwork and metadata refresh. See [the continuation handoff](docs/handoffs/local-catalog-native.md).
 
 For the actual iOS development build, install Xcode 26.4+, select its command-line tools, then:
 

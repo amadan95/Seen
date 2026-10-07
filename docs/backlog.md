@@ -2,7 +2,7 @@
 
 Version 1.1 · Rank Score added · October 4, 2026. Companion to the [full iOS specification](spec.md).
 
-Run one task at a time unless accepted interfaces and file ownership make parallel work safe. Tasks 01–22 are the initial public release; 23–28 are later increments. Section references such as G or K refer to the full specification. These are prompts for future implementation; no app has been built yet.
+Run one task at a time unless accepted interfaces and file ownership make parallel work safe. Tasks 01–22 are the initial public release; 23–28 are later increments. Section references such as G or K refer to the full specification. These are production increments. A local fixture preview and identity foundation exist; consult handoffs for actual checks and remaining gates.
 
 ## Instructions to prepend to every task
 
@@ -289,3 +289,24 @@ Run one task at a time unless accepted interfaces and file ownership make parall
 **Verify:** vendor fixtures/credit budgets, mapping migration, link fallback, snapshot-diff/date provenance, entitlement labeling and notification dedup/privacy tests.
 
 Season/episode tracking, cross-format overall rankings, Android and full web remain separate future specifications. Their identity/permission contracts must be designed before adding client screens or changing V1 ranking scopes.
+
+## Adopted discovery/ranking refinement
+
+The October 6 refinement in [spec X](spec.md#x-discovery-and-ranking-improvements--october-6-2026)
+and [implementation handoff](handoffs/discovery-ranking-improvements.md) supplements
+these increments; it does not mark them complete or reorder dependencies.
+
+- **03–09:** resumable authentication; durable actor-scoped commands/outbox; recoverable
+  drafts and mutation-specific Undo; transactional incremental records.
+- **10–12:** format-specific ranking-input cache; failed/stale-fit protection; adaptive
+  bounded picker, seeded sides, bridge scheduling and persisted cooldowns; authoritative
+  sessions; correct placement resume, durable Undo and highlighted ranking result.
+- **13–17:** personal onboarding, licensed availability, versioned ordered recommendations,
+  Tonight's three picks, temporary/persistent/logging feedback and grounded attribution.
+  Optimize pagination retries and expose active watchlist constraints/explicit priorities.
+  Measure user value and comparison burden, with temporal offline evaluation.
+- **18–22:** only authorized social features, native/accessibility/performance checks and
+  release gates. Preview screenshots and exports do not establish release readiness.
+- **After 22:** private monthly programmes require event-date completeness checks;
+  unknown dates are excluded from dated totals. Mini-festivals extend task 23 lists
+  with editable order and real-watch progress. Tasks 26–28 retain data/rights gates.

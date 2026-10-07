@@ -117,7 +117,16 @@ export function activeComparisons(opinions: Opinion[], comparisons: Comparison[]
   return [...latest.values()];
 }
 
-export function buildSnapshot(catalog: Media[], library: Library, kind: MediaKind): RankSnapshot {
+export interface RankingAnalysis {
+  snapshot: RankSnapshot;
+  scores: Map<string, number>;
+  components: Map<string, number>;
+}
+export function analyzeRanking(
+  catalog: Media[],
+  library: Library,
+  kind: MediaKind,
+): RankingAnalysis {
   const media = new Map(catalog.filter((m) => m.kind === kind).map((m) => [m.id, m]));
   const opinions = library.opinions.filter(
     (o) => media.has(o.mediaId) && isEligible(o, media.get(o.mediaId)!),
@@ -196,68 +205,261 @@ export function buildSnapshot(catalog: Media[], library: Library, kind: MediaKin
       }),
     );
   return {
-    kind,
-    sourceRevision: library.revision,
-    modelVersion: MODEL.version,
-    scoreScaleVersion: MODEL.scale,
-    items,
+    scores: fit.scores,
+    components: new Map(
+      components.flatMap((component, index) => [...component].map((id) => [id, index] as const)),
+    ),
+    snapshot: {
+      kind,
+      sourceRevision: library.revision,
+      modelVersion: MODEL.version,
+      scoreScaleVersion: MODEL.scale,
+      items,
+    },
   };
 }
 
-/** Preview picker: bounded pool, current evidence exclusions, same-format eligibility. Server sessions are task 11. */
+export function buildSnapshot(catalog: Media[], library: Library, kind: MediaKind): RankSnapshot {
+  return analyzeRanking(catalog, library, kind).snapshot;
+}
+
+/** Metadata and unrelated library mutations are deliberately absent from this key. */
+export function rankingInputKey(catalog: Media[], library: Library, kind: MediaKind): string {
+  const media = new Map(
+    catalog.filter((item) => item.kind === kind).map((item) => [item.id, item]),
+  );
+  const opinions = library.opinions.filter(
+    (o) => media.has(o.mediaId) && isEligible(o, media.get(o.mediaId)!),
+  );
+  const ids = new Set(opinions.map((o) => o.mediaId));
+  return JSON.stringify([
+    MODEL.version,
+    MODEL.scale,
+    opinions
+      .map((o) => [o.mediaId, o.sentiment, o.revision])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    activeComparisons(opinions, library.comparisons)
+      .filter((c) => ids.has(c.a) && ids.has(c.b))
+      .map((c) => [c.a, c.b, c.aRevision, c.bRevision, c.outcome])
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+  ]);
+}
+
+export interface RankingState {
+  analysis: RankingAnalysis;
+  key: string;
+  error: string | null;
+}
+export class RankingCache {
+  private states = new Map<MediaKind, RankingState>();
+  constructor(private fit = analyzeRanking) {}
+  update(catalog: Media[], library: Library, retry = false): void {
+    for (const kind of ['movie', 'tv'] as const) {
+      const key = rankingInputKey(catalog, library, kind),
+        previous = this.states.get(kind);
+      if (previous?.key === key && (!retry || !previous.error)) continue;
+      try {
+        this.states.set(kind, { key, analysis: this.fit(catalog, library, kind), error: null });
+      } catch {
+        const lookup = new Map(catalog.map((m) => [m.id, m]));
+        const eligible = library.opinions.filter(
+          (o) => lookup.get(o.mediaId)?.kind === kind && isEligible(o, lookup.get(o.mediaId)!),
+        );
+        const edges = activeComparisons(eligible, library.comparisons);
+        const compared = new Set(edges.flatMap((c) => [c.a, c.b]));
+        const old = previous?.analysis.snapshot;
+        const items = eligible
+          .map((o) => {
+            const confirmed = old?.items.find((item) => item.mediaId === o.mediaId);
+            return compared.has(o.mediaId) && confirmed
+              ? confirmed
+              : {
+                  mediaId: o.mediaId,
+                  position: null,
+                  rankScore: null,
+                  opponents: 0,
+                  evidence: 'unplaced' as const,
+                };
+          })
+          .sort((a, b) => (a.position ?? Infinity) - (b.position ?? Infinity));
+        let position = 0;
+        const snapshot = {
+          kind,
+          sourceRevision: old?.sourceRevision ?? library.revision,
+          modelVersion: MODEL.version,
+          scoreScaleVersion: MODEL.scale,
+          items: items.map((item) =>
+            item.position === null ? item : { ...item, position: ++position },
+          ),
+        };
+        this.states.set(kind, {
+          key,
+          analysis: { snapshot, scores: new Map(), components: new Map() },
+          error: 'Your watch is saved. Ranking could not update. Retry to finish placing it.',
+        });
+      }
+    }
+  }
+  get(kind: MediaKind): RankingState {
+    const result = this.states.get(kind);
+    if (!result) throw new Error('Rankings are still loading');
+    return result;
+  }
+}
+
+export const PICKER_VERSION = 'adaptive-preview-v2';
+export const pairKey = (a: string, b: string): string => [a, b].sort().join('|');
+export function seededNumber(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) hash = Math.imul(hash ^ value.charCodeAt(i), 16777619);
+  return (hash >>> 0) / 4294967296;
+}
+export interface PickerOptions {
+  analysis?: RankingAnalysis;
+  seed?: string;
+  served?: number;
+  now?: string;
+  reconsider?: boolean;
+  mode?: 'placement' | 'refine';
+}
+export interface PickedComparison {
+  pair: [Media, Media];
+  reason: string;
+}
+/** Bounded candidates; same-format eligibility. Server-offered sessions remain a production gate. */
+export function chooseComparison(
+  catalog: Media[],
+  library: Library,
+  kind: MediaKind,
+  excluded: Set<string>,
+  target?: string,
+  options: PickerOptions = {},
+): PickedComparison | null {
+  const analysis = options.analysis ?? analyzeRanking(catalog, library, kind);
+  const eligible = analysis.snapshot.items,
+    lookup = new Map(catalog.map((m) => [m.id, m]));
+  if (target && !eligible.some((item) => item.mediaId === target)) return null;
+  const opinions = new Map(library.opinions.map((o) => [o.mediaId, o]));
+  const active = new Set(
+    activeComparisons(library.opinions, library.comparisons).map((c) => pairKey(c.a, c.b)),
+  );
+  const cooling = new Set(
+    library.comparisonCooldowns
+      .filter((c) => {
+        const [a, b] = c.key.split('|');
+        return (
+          options.now &&
+          c.until > options.now &&
+          opinions.get(a!)?.revision === c.aRevision &&
+          opinions.get(b!)?.revision === c.bRevision
+        );
+      })
+      .map((c) => c.key),
+  );
+  const score = (id: string) =>
+    analysis.scores.get(id) ??
+    (opinions.get(id)?.sentiment === 'liked'
+      ? 1
+      : opinions.get(id)?.sentiment === 'disliked'
+        ? -1
+        : 0);
+  const allowed = (a: string, b: string) =>
+    a !== b &&
+    !excluded.has(pairKey(a, b)) &&
+    (options.reconsider || (!active.has(pairKey(a, b)) && !cooling.has(pairKey(a, b))));
+  const bridge = (a: string, b: string) =>
+    analysis.components.get(a) !== analysis.components.get(b);
+  const finish = (a: string, b: string, reason: string): PickedComparison => ({
+    pair:
+      options.seed && seededNumber(`${options.seed}:${options.served ?? 0}:${pairKey(a, b)}`) < 0.5
+        ? [lookup.get(b)!, lookup.get(a)!]
+        : [lookup.get(a)!, lookup.get(b)!],
+    reason,
+  });
+  const priority = (a: (typeof eligible)[number], b: (typeof eligible)[number]) => {
+    const p = sigmoid(score(a.mediaId) - score(b.mediaId));
+    const coverage = 0.5 / (1 + a.opponents) + 0.5 / (1 + b.opponents);
+    const boundary = [a, b].some((i) => i.position !== null && Math.abs(i.position - 10) <= 2)
+      ? 1
+      : 0;
+    return 0.65 * 4 * p * (1 - p) + 0.25 * coverage + 0.1 * boundary;
+  };
+  const focusOrder = target
+    ? eligible.filter((i) => i.mediaId === target)
+    : [...eligible].sort(
+        (a, b) =>
+          Number(b.position === null) - Number(a.position === null) ||
+          a.opponents - b.opponents ||
+          a.mediaId.localeCompare(b.mediaId),
+      );
+  const anchors = [...eligible].sort(
+    (a, b) => score(a.mediaId) - score(b.mediaId) || a.mediaId.localeCompare(b.mediaId),
+  );
+  // Up to 24 candidate opponents per focus, and 24 focus probes for general refinement.
+  const bridgeTurn = ((options.served ?? 0) + 1) % 5 === 0;
+  for (const bridgeOnly of bridgeTurn ? [true, false] : [false]) {
+    for (const focus of focusOrder.slice(0, target ? 1 : 24)) {
+      const nearby = eligible
+        .filter((i) => allowed(focus.mediaId, i.mediaId))
+        .sort(
+          (a, b) =>
+            Math.abs(score(a.mediaId) - score(focus.mediaId)) -
+              Math.abs(score(b.mediaId) - score(focus.mediaId)) ||
+            a.mediaId.localeCompare(b.mediaId),
+        );
+      const pool = new Map(nearby.slice(0, 12).map((i) => [i.mediaId, i]));
+      for (let q = 0; q < 8; q++) {
+        const anchor = anchors[Math.floor((q * (anchors.length - 1)) / 7)];
+        if (anchor && allowed(focus.mediaId, anchor.mediaId)) pool.set(anchor.mediaId, anchor);
+      }
+      for (const item of nearby.filter((i) => bridge(focus.mediaId, i.mediaId)).slice(0, 4))
+        pool.set(item.mediaId, item);
+      const candidates = [...pool.values()];
+      if (!candidates.length) continue;
+      if (bridgeOnly) {
+        const other = candidates
+          .filter((i) => bridge(focus.mediaId, i.mediaId))
+          .sort(
+            (a, b) =>
+              Math.abs(score(a.mediaId) - score(focus.mediaId)) -
+                Math.abs(score(b.mediaId) - score(focus.mediaId)) ||
+              a.mediaId.localeCompare(b.mediaId),
+          )[0];
+        if (other) return finish(focus.mediaId, other.mediaId, 'component_bridge');
+        continue;
+      }
+      if (target && options.mode !== 'refine') {
+        const genres = new Set(lookup.get(target)!.genres);
+        const shared = (i: typeof focus) =>
+          lookup.get(i.mediaId)!.genres.filter((g) => genres.has(g)).length;
+        candidates.sort(
+          (a, b) =>
+            Number(b.position !== null) - Number(a.position !== null) ||
+            shared(b) - shared(a) ||
+            Math.abs(score(a.mediaId) - score(target)) -
+              Math.abs(score(b.mediaId) - score(target)) ||
+            a.mediaId.localeCompare(b.mediaId),
+        );
+      } else
+        candidates.sort(
+          (a, b) => priority(focus, b) - priority(focus, a) || a.mediaId.localeCompare(b.mediaId),
+        );
+      return finish(
+        focus.mediaId,
+        candidates[0]!.mediaId,
+        target ? 'targeted_placement' : 'ambiguity_coverage',
+      );
+    }
+  }
+  return null;
+}
 export function pickComparison(
   catalog: Media[],
   library: Library,
   kind: MediaKind,
   excluded: Set<string>,
   target?: string,
+  options: PickerOptions = {},
 ): [Media, Media] | null {
-  const snapshot = buildSnapshot(catalog, library, kind);
-  const lookup = new Map(catalog.map((m) => [m.id, m]));
-  const eligible = snapshot.items;
-  if (target && !eligible.some((item) => item.mediaId === target)) return null;
-  const active = new Set(
-    activeComparisons(library.opinions, library.comparisons).map((c) =>
-      [c.a, c.b].sort().join('|'),
-    ),
-  );
-  const focus =
-    eligible.find((i) => i.mediaId === target) ??
-    eligible.find((i) => i.position === null) ??
-    [...eligible].sort((a, b) => a.opponents - b.opponents)[0];
-  if (!focus) return null;
-  function candidatesFor(focus: (typeof eligible)[number]) {
-    const candidates = eligible.filter(
-      (i) =>
-        i.mediaId !== focus.mediaId &&
-        !excluded.has([i.mediaId, focus.mediaId].sort().join('|')) &&
-        !active.has([i.mediaId, focus.mediaId].sort().join('|')),
-    );
-    candidates.sort((a, b) => {
-      const sentiment = library.opinions.find((item) => item.mediaId === focus.mediaId)?.sentiment;
-      const expected =
-        focus.rankScore ?? rankScore(sentiment === 'liked' ? 1 : sentiment === 'disliked' ? -1 : 0);
-      const genres = new Set(lookup.get(focus.mediaId)!.genres);
-      const shared = (item: typeof a) =>
-        lookup.get(item.mediaId)!.genres.filter((genre) => genres.has(genre)).length;
-      const gap = (item: typeof a) => Math.abs((item.rankScore ?? expected) - expected);
-      return (
-        Number(b.rankScore !== null) - Number(a.rankScore !== null) ||
-        shared(b) - shared(a) ||
-        gap(a) - gap(b) ||
-        a.opponents - b.opponents ||
-        a.mediaId.localeCompare(b.mediaId)
-      );
-    });
-    return candidates;
-  }
-  const opponent = candidatesFor(focus)[0];
-  if (opponent) return [lookup.get(focus.mediaId)!, lookup.get(opponent.mediaId)!];
-  if (target) return null;
-  for (const item of eligible) {
-    if (item.mediaId === focus.mediaId) continue;
-    const other = candidatesFor(item)[0];
-    if (other) return [lookup.get(item.mediaId)!, lookup.get(other.mediaId)!];
-  }
-  return null;
+  return chooseComparison(catalog, library, kind, excluded, target, options)?.pair ?? null;
 }

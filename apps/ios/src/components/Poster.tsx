@@ -2,7 +2,7 @@ import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'r
 import { useState } from 'react';
 import Svg, { Circle, Path, Rect, Line, G } from 'react-native-svg';
 import { router } from 'expo-router';
-import type { Media, RankItem } from '@seen/contracts';
+import type { Media, RankItem, RecommendationContext } from '@seen/contracts';
 import { colors, typography } from '../design/tokens';
 import { Body, s } from './ui';
 
@@ -185,13 +185,16 @@ function PosterArtwork({
 export function PosterTile({
   media,
   reason,
+  recommendation,
   width = 154,
 }: {
   media: Media;
   reason?: string;
+  recommendation?: RecommendationContext;
   width?: number;
 }) {
-  const open = () => router.push({ pathname: '/media/[id]', params: { id: media.id } });
+  const open = () =>
+    router.push({ pathname: '/media/[id]', params: { id: media.id, ...recommendation } });
   return (
     <View style={{ width, gap: 5 }}>
       <Poster
@@ -229,8 +232,8 @@ export function MediaRow({
   trailing?: React.ReactNode;
   description?: string;
 }) {
-  const { fontScale } = useWindowDimensions();
-  const largeType = fontScale > 1.4;
+  const { fontScale, width } = useWindowDimensions();
+  const largeType = fontScale > 1.4 || (Boolean(trailing) && width < 420);
   const open = () => router.push({ pathname: '/media/[id]', params: { id: media.id } });
   const label = `${media.title}, ${media.year ?? 'year unknown'}${rank?.position ? `, position ${rank.position}, your rank score ${rank.rankScore} out of 10, ${rank.evidence}` : ''}`;
   return (

@@ -53,6 +53,7 @@ export default function RootLayout() {
               options={{ title: 'Your ranking', presentation: 'modal' }}
             />
             <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+            <Stack.Screen name="tonight" options={{ title: 'Tonight' }} />
           </Stack>
         </LibraryProvider>
       </ThemeProvider>
