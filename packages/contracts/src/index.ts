@@ -153,6 +153,13 @@ const undoPatch = <T extends z.ZodType>(row: T) =>
     before: z.array(row),
     after: z.array(row),
   });
+export const collectionSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(40),
+  mediaIds: z.array(z.string()).default([]),
+});
+export type Collection = z.infer<typeof collectionSchema>;
+
 export const undoReceiptSchema = z.object({
   id: z.string(),
   label: z.string(),
@@ -161,6 +168,7 @@ export const undoReceiptSchema = z.object({
     opinions: undoPatch(opinionSchema).optional(),
     logs: undoPatch(logSchema).optional(),
     notes: undoPatch(titleNoteSchema).optional(),
+    collections: undoPatch(collectionSchema).optional(),
     comparisons: undoPatch(comparisonSchema).optional(),
     watchlist: undoPatch(watchlistSchema).optional(),
     dismissals: undoPatch(dismissalSchema).optional(),
@@ -180,6 +188,7 @@ export const librarySchema = z.object({
   opinions: z.array(opinionSchema),
   logs: z.array(logSchema),
   notes: z.array(titleNoteSchema).default([]),
+  collections: z.array(collectionSchema).default([]),
   comparisons: z.array(comparisonSchema),
   watchlist: z.array(watchlistSchema),
   // Backward-compatible preview metadata, independent of eventual production catalog tables.

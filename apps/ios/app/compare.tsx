@@ -1,3 +1,4 @@
+import { TextAction } from '../src/components/Sheet';
 import { useEffect, useRef, useState } from 'react';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Pressable, View, useWindowDimensions } from 'react-native';
@@ -162,7 +163,7 @@ export default function Compare() {
     <Screen inStack>
       <Stack.Screen options={{ gestureEnabled: !placement }} />
       <View style={[s.row, { justifyContent: 'space-between' }]}>
-        <Body muted>
+        <Body muted style={{ flex: 1 }}>
           {placement
             ? `Placing ${targetMedia?.title ?? 'your title'}`
             : `${kind === 'tv' ? 'TV' : 'Movies'} · ${Math.min(steps + 1, 3)} of up to 3`}
@@ -192,11 +193,6 @@ export default function Compare() {
         <>
           <View style={{ gap: 10, marginVertical: 12 }}>
             <Heading large>Which did you enjoy more?</Heading>
-            {placement && (
-              <Body muted style={s.caption}>
-                Your watch is saved. Choose a poster to place it.
-              </Body>
-            )}
           </View>
           <View
             style={{
@@ -215,25 +211,14 @@ export default function Compare() {
             disabled={busy}
             onPress={() => void answer('similar')}
           />
-          <View style={s.row}>
-            <Button
+          <View style={[s.row, { flexWrap: 'wrap', justifyContent: 'center' }]}>
+            <TextAction
               label="Can’t decide"
-              secondary
-              style={{ flex: 1 }}
               disabled={busy}
               onPress={() => void answer('undecided')}
             />
-            <Button
-              label="Skip"
-              secondary
-              style={{ flex: 1 }}
-              disabled={busy}
-              onPress={() => void answer('skip')}
-            />
+            <TextAction label="Skip" disabled={busy} onPress={() => void answer('skip')} />
           </View>
-          <Body muted style={[s.caption, { textAlign: 'center' }]}>
-            Scores stay hidden while you choose.
-          </Body>
         </>
       ) : (
         <EmptyState
@@ -292,10 +277,7 @@ export default function Compare() {
       <InlineError message={error ?? rankState.error} />
       {rankState.error && <Button label="Retry ranking" secondary onPress={retryRanking} />}
       {!session && <Body muted>Opening your saved comparison session…</Body>}
-      <UndoActions />
-      <Body muted style={s.caption}>
-        Local comparison preview. Production comparisons will require an online, authorized session.
-      </Body>
+      <UndoActions labels={['saved watch', 'last comparison']} />
     </Screen>
   );
 }

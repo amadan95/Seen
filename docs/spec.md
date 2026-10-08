@@ -109,7 +109,7 @@ Search cached recent titles → log or save → show Pending sync → reconnect 
 
 ## E. Information architecture
 
-Keep five labeled tabs: **Home, Discover, Rank, Watchlist, Profile.** Home and Discover have a prominent search affordance; search is a reusable pushed screen. Do not add a sixth social tab.
+Keep four labeled tabs: **Home, Discover, Rankings, Watchlist.** Profile and the private viewing journal open from the Home header. Home and Discover have a prominent search affordance; search is a reusable pushed screen. Do not add a sixth social tab.
 
 ```text
 Welcome / Browse / Sign in / Taste setup
@@ -1224,3 +1224,10 @@ After release foundations, add a private monthly programme based on actual dated
 watch events and favorites. Unknown dates stay outside dated totals. Personal
 mini-festivals extend task 23 with owner-editable ordering and progress derived from
 real logs. Neither feature adds speculative social activity or gamified claims.
+
+
+### Adopted local UI and journal increment — October 8, 2026
+
+The approved cleanup uses artwork-led Home/Watchlist/Discover, contextual filter and detail sheets, collapsed pending rankings and score-tap help. Sentiment save/automatic same-format placement, explicit TV eligibility, drafts, sparse ranking evidence and durable Undo remain unchanged. Company-level service selection retains exact provider IDs and does not verify plan entitlements.
+
+Local collections support independent multi-title membership, rename and deletion with durable conflict-checked Undo; deleting a collection never deletes watches, notes or saved titles. Journal search covers titles, dates, historical event notes and current private title notes, including note-only titles without fabricated watches. Month headings use actual watch dates; undated events remain undated. Yearly recaps count dated movie/TV log events and explicitly include rewatches, exclude undated events, and show current rankings among titles watched in the selected year. Collections and notes are private on this installation and included in local export. Production actor-partitioned schemas, RLS and sync remain required by the existing backlog. Artwork-sharing and shared social lists remain gated.

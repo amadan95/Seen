@@ -5,6 +5,7 @@ const collections = [
   'opinions',
   'logs',
   'notes',
+  'collections',
   'comparisons',
   'watchlist',
   'dismissals',

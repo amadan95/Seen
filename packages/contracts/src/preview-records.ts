@@ -10,6 +10,7 @@ export const previewCollections = [
   'opinions',
   'logs',
   'notes',
+  'collections',
   'comparisons',
   'watchlist',
   'catalogEntries',

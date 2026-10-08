@@ -11,14 +11,13 @@ import {
   Heading,
   IconButton,
   InlineError,
-  PreviewNotice,
   Screen,
   Section,
   s,
 } from '../../src/components/ui';
 import { catalogUrl } from '../../src/features/catalog/client';
 import { colors } from '../../src/design/tokens';
-import { MediaRow, Poster, PosterTile } from '../../src/components/Poster';
+import { Poster, PosterTile } from '../../src/components/Poster';
 
 export default function Home() {
   const {
@@ -88,7 +87,6 @@ export default function Home() {
     eligible: snapshot(kind).items,
     unplaced: snapshot(kind).items.filter((i) => i.position === null),
   }));
-  const recent = [...library.logs].reverse().slice(0, 3);
   const featured = picks[0];
   const rail = picks.slice(1, 6);
   const featureWidth = Math.max(1, width - 40);
@@ -102,7 +100,7 @@ export default function Home() {
           <IconButton
             name="profile"
             label="Open your profile"
-            onPress={() => router.push('/(tabs)/profile')}
+            onPress={() => router.push('/profile')}
           />
         </View>
       }
@@ -130,33 +128,9 @@ export default function Home() {
           <Body muted style={s.caption}>
             {featured.reason}
           </Body>
-          <Button
-            label="View title"
-            secondary
-            onPress={() =>
-              router.push({
-                pathname: '/media/[id]',
-                params: {
-                  id: featured.media.id,
-                  requestId: featured.requestId,
-                  itemId: featured.itemId,
-                  servedAt,
-                },
-              })
-            }
-          />
         </View>
       )}
-      <Section
-        title="Watch tonight"
-        action={
-          <IconButton
-            name="chevron"
-            label="Choose tonight’s watch"
-            onPress={() => router.push('/tonight')}
-          />
-        }
-      >
+      <Section title="Watch tonight">
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -166,7 +140,6 @@ export default function Home() {
             <PosterTile
               key={p.media.id}
               media={p.media}
-              reason={p.reason}
               width={158}
               recommendation={{ requestId: p.requestId, itemId: p.itemId, servedAt }}
             />
@@ -180,49 +153,39 @@ export default function Home() {
           />
         )}
       </Section>
-      <View style={{ backgroundColor: colors.surface, padding: 16, borderRadius: 12 }}>
-        <Section
-          inset
-          title="Continue ranking"
-          action={
-            <IconButton
-              name="chevron"
-              label="Open rankings"
-              onPress={() => router.push('/(tabs)/rank')}
-            />
-          }
-        >
-          {scopes
-            .filter((scope) => scope.eligible.length >= 2)
-            .map((scope) => (
-              <View key={scope.kind} style={{ gap: 8 }}>
-                <Body muted style={s.caption}>
-                  {scope.kind === 'movie' ? 'Movies' : 'TV'} ·{' '}
-                  {scope.unplaced.length
-                    ? `${scope.unplaced.length} waiting to find a place`
-                    : 'Refine whenever you like'}
-                </Body>
-                <Button
-                  label={scope.kind === 'movie' ? 'Refine your movies' : 'Refine your TV'}
-                  secondary
-                  icon="rank"
-                  onPress={() =>
-                    router.push({ pathname: '/compare', params: { kind: scope.kind } })
-                  }
-                />
-              </View>
-            ))}
-          {!scopes.some((scope) => scope.eligible.length >= 2) && (
-            <EmptyState
-              title="Your list starts with a watch"
-              message="Log two movies or two TV shows you have seen enough of to try a comparison."
-              action={
-                <Button label="Find a title" secondary onPress={() => router.push('/search')} />
-              }
-            />
-          )}
-        </Section>
-      </View>
+      {scopes.some((scope) => scope.unplaced.length > 0) && (
+        <View style={{ backgroundColor: colors.surface, padding: 16, borderRadius: 12 }}>
+          <Section inset title="Continue ranking">
+            {scopes
+              .filter((scope) => scope.unplaced.length > 0)
+              .map((scope) => (
+                <View key={scope.kind} style={{ gap: 8 }}>
+                  <Body muted style={s.caption}>
+                    {scope.kind === 'movie' ? 'Movies' : 'TV'} ·{' '}
+                    {scope.unplaced.length
+                      ? `${scope.unplaced.length} waiting to find a place`
+                      : 'Refine whenever you like'}
+                  </Body>
+                  <Button
+                    label={scope.kind === 'movie' ? 'Place a movie' : 'Place a show'}
+                    secondary
+                    icon="rank"
+                    onPress={() =>
+                      router.push({
+                        pathname: '/compare',
+                        params: {
+                          kind: scope.kind,
+                          target: scope.unplaced[0]!.mediaId,
+                          mode: 'placement',
+                        },
+                      })
+                    }
+                  />
+                </View>
+              ))}
+          </Section>
+        </View>
+      )}
       {catalogLoading && (
         <ActivityIndicator
           color={colors.accent}
@@ -235,22 +198,6 @@ export default function Home() {
           <Button label="Retry catalog" secondary onPress={refreshCatalog} />
         </>
       )}
-      <Section
-        title="Recently watched"
-        action={
-          <IconButton
-            name="chevron"
-            label="View watch history"
-            onPress={() => router.push('/(tabs)/profile')}
-          />
-        }
-      >
-        {recent.map((log) => (
-          <MediaRow key={log.id} media={mediaById.get(log.mediaId)!} />
-        ))}
-        {!recent.length && <Body muted>Your first log will appear here.</Body>}
-      </Section>
-      <PreviewNotice />
     </Screen>
   );
 }

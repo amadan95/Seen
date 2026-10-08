@@ -310,3 +310,8 @@ these increments; it does not mark them complete or reorder dependencies.
 - **After 22:** private monthly programmes require event-date completeness checks;
   unknown dates are excluded from dated totals. Mini-festivals extend task 23 lists
   with editable order and real-watch progress. Tasks 26–28 retain data/rights gates.
+
+
+## Local UI cleanup increment — October 8, 2026
+
+Four-tab navigation, contextual sheets, quiet secondary controls, company-level service choice, private collections with durable Undo, searchable journal and dated yearly recap are implemented in the isolated local preview. This does not complete production auth/data/ranking tasks. Carry collection owner authorization, server validation, schema migration, sync/conflict contracts and private-note protections into the existing sequential backlog before a hosted launch. Artwork export/sharing stays deferred until supplier reuse rights are confirmed; shared lists require permitted accounts and consent. See docs/handoffs/ui-cleanup-and-journal.md for actual verification.

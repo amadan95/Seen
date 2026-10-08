@@ -24,7 +24,7 @@ Short optional comparisons build a personal preference order and automatically a
 
 ## Capabilities and Constraints
 
-Five tabs: Home, Discover, Rank, Watchlist, Profile. Liked/Fine/Disliked. Separate movie and whole-show TV rankings; TV requires explicit seen-enough confirmation. Private by default. Comparisons never block logging. Uncompared titles have no score. Backend, auth, social and supplier access are separate release gates.
+Four tabs: Home, Discover, Rankings, Watchlist. Profile opens the private journal from the Home header. Local collections, journal search and dated yearly recaps add organization without additional tabs. Liked/Fine/Disliked. Separate movie and whole-show TV rankings; TV requires explicit seen-enough confirmation. Private by default. Comparisons never block logging. Uncompared titles have no score. Backend, auth, social and supplier access are separate release gates.
 
 ## Brand Commitments
 

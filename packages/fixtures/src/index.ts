@@ -256,6 +256,7 @@ export function sampleLibrary(): Library {
       };
     }),
     notes: [],
+    collections: [],
     catalogEntries: [],
     watchlist: ['moon', 'grand-budapest', 'bear'].map((mediaId, i) => ({
       mediaId,

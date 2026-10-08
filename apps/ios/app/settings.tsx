@@ -21,7 +21,8 @@ export default function Settings() {
   }
   function confirm(sample: boolean) {
     const title = sample ? 'Replace with sample history?' : 'Clear this local library?';
-    const message = 'This replaces logs, comparisons, and saved titles on this device.';
+    const message =
+      'This replaces logs, private notes, collections, comparisons, and saved titles on this device.';
     if (Platform.OS === 'web') {
       if (window.confirm(`${title}\n${message}`)) replace(sample);
     } else

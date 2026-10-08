@@ -1,3 +1,4 @@
+import { SheetControl } from '../../components/Sheet';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, TextInput, View, useWindowDimensions } from 'react-native';
 import type { MediaKind } from '@seen/contracts';
@@ -8,10 +9,8 @@ import {
   Body,
   Button,
   Chip,
-  Disclosure,
   EmptyState,
   Heading,
-  PreviewNotice,
   InlineError,
   Screen,
   Segments,
@@ -58,7 +57,6 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
       ).items,
     [cachedCatalog, library, kind, genre, short, live],
   );
-  const reasons = new Map(picks.map((p) => [p.media.id, p.reason]));
   const results = personal
     ? picks.map((p) => p.media)
     : live
@@ -118,7 +116,7 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
                 if (value === 'tv') setShort(false);
               }}
             />
-            <Disclosure title={`Filters${genre || short ? ' · active' : ''}`}>
+            <SheetControl title={`Filters${genre || short ? ' · active' : ''}`}>
               <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                 <Chip
                   label="Under 2 hours"
@@ -148,7 +146,7 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
                   onChange={(value) => setLive(value === 'live')}
                 />
               )}
-            </Disclosure>
+            </SheetControl>
             {live && remote.page?.stale && (
               <Body muted style={s.caption}>
                 Showing recently cached titles while TMDB is unavailable.
@@ -179,7 +177,7 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
                   })()
                 : undefined
             }
-            reason={personal ? reasons.get(item.id) : String(item.year ?? 'Year unknown')}
+            reason={String(item.year ?? 'Year unknown')}
           />
         )}
         ListEmptyComponent={
@@ -212,7 +210,6 @@ export function DiscoverScreen({ search = false }: { search?: boolean }) {
                 onPress={remote.loadMore}
               />
             )}
-            <PreviewNotice />
             <Body muted style={s.caption}>
               {short
                 ? 'Movies with known runtime of 120 minutes or less.'

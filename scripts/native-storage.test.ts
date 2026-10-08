@@ -1,3 +1,4 @@
+import { saveCollection, setCollectionTitle } from '../packages/domain/src/journal';
 import { DatabaseSync } from 'node:sqlite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createRecordStorage, type RecordDatabase } from '../apps/ios/src/local/recordStorage';
@@ -74,4 +75,24 @@ describe('native preview SQLite transaction adapter', () => {
     await storage.writeLibrary(emptyLibrary());
     expect(await storage.readLibrary()).toEqual(emptyLibrary());
   });
+});
+
+it('persists collection memberships atomically and survives a storage adapter restart', async () => {
+  const storage = createRecordStorage(openDatabase),
+    before = sampleLibrary();
+  await storage.writeLibrary(before);
+  const next = setCollectionTitle(
+    saveCollection(before, 'film-night', 'Film night'),
+    catalog,
+    'film-night',
+    'arrival',
+    true,
+  );
+  control.failMeta = true;
+  await expect(storage.writeLibrary(next)).rejects.toThrow();
+  expect(await storage.readLibrary()).toEqual(before);
+  control.failMeta = false;
+  await storage.writeLibrary(next);
+  const restarted = createRecordStorage(openDatabase);
+  expect(await restarted.readLibrary()).toEqual(next);
 });

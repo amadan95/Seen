@@ -1,3 +1,4 @@
+import { Sheet, SheetControl, TextAction } from '../../src/components/Sheet';
 import { useEffect, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { FlatList, View } from 'react-native';
@@ -8,13 +9,10 @@ import {
   Button,
   Chip,
   EmptyState,
-  Disclosure,
   Heading,
   InlineError,
-  PreviewNotice,
   Screen,
   Segments,
-  s,
 } from '../../src/components/ui';
 import { MediaRow } from '../../src/components/Poster';
 import { UndoActions } from '../../src/components/UndoActions';
@@ -31,7 +29,8 @@ export default function Rank() {
   const [kind, setKind] = useState<MediaKind>('movie'),
     [limit, setLimit] = useState('10');
   const [genre, setGenre] = useState<string | null>(null),
-    [about, setAbout] = useState(false);
+    [about, setAbout] = useState(false),
+    [pendingOpen, setPendingOpen] = useState(false);
   const [highlight, setHighlight] = useState<string | null>(null);
   const list = useRef<FlatList<Row>>(null),
     scrolled = useRef('');
@@ -63,7 +62,10 @@ export default function Rank() {
   const data: Row[] = [
     ...visible.map((item): Row => ({ type: 'title', item })),
     ...(unplaced.length
-      ? [{ type: 'unplaced' } as Row, ...unplaced.map((item): Row => ({ type: 'title', item }))]
+      ? [
+          { type: 'unplaced' } as Row,
+          ...(pendingOpen ? unplaced.map((item): Row => ({ type: 'title', item })) : []),
+        ]
       : []),
   ];
   const added = ranks.items.find((i) => i.mediaId === params.placed && i.rankScore !== null);
@@ -89,6 +91,12 @@ export default function Rank() {
   }
   return (
     <Screen scroll={false}>
+      <Sheet title="About Rank Score" visible={about} onClose={() => setAbout(false)}>
+        <Body>
+          Your score / 10 comes from comparisons. Filters never change it. Early scores are
+          provisional. Titles without comparison evidence remain unplaced.
+        </Body>
+      </Sheet>
       <FlatList
         ref={list}
         data={data}
@@ -121,7 +129,7 @@ export default function Rank() {
                 {added.evidence === 'provisional' ? ' · Provisional' : ''}
               </Body>
             )}
-            <UndoActions />
+            <UndoActions labels={['saved watch', 'last comparison']} />
             <InlineError message={state.error} />
             {state.error && <Button label="Retry ranking" secondary onPress={retryRanking} />}
             <Segments
@@ -132,7 +140,7 @@ export default function Rank() {
               value={kind}
               onChange={setKind}
             />
-            <Disclosure
+            <SheetControl
               title={`Filters · ${limit === 'all' ? 'All' : `Top ${limit}`}${genre ? ` · ${genre}` : ''}`}
             >
               <View style={{ gap: 8 }}>
@@ -159,18 +167,13 @@ export default function Rank() {
                     ))}
                 </View>
               </View>
-            </Disclosure>
+            </SheetControl>
             <Button
               label="Refine your list"
               secondary
               icon="rank"
               onPress={() => router.push({ pathname: '/compare', params: { kind } })}
             />
-            {visible.length > 0 && (
-              <Body muted style={s.caption}>
-                Position · Title · Rank Score
-              </Body>
-            )}
           </View>
         }
         renderItem={({ item: row }) => (
@@ -182,10 +185,10 @@ export default function Rank() {
           >
             {row.type === 'unplaced' ? (
               <View style={{ gap: 8, marginTop: 24 }}>
-                <Heading>Not yet placed</Heading>
-                <Body muted style={s.caption}>
-                  These titles are saved. Comparisons are always optional.
-                </Body>
+                <TextAction
+                  label={`${pendingOpen ? 'Hide' : 'Show'} pending titles · ${unplaced.length}`}
+                  onPress={() => setPendingOpen(!pendingOpen)}
+                />
               </View>
             ) : (
               <View
@@ -196,6 +199,7 @@ export default function Rank() {
                 <MediaRow
                   media={mediaById.get(row.item.mediaId)!}
                   rank={row.item}
+                  onScore={() => setAbout(true)}
                   trailing={
                     row.item.position === null ? (
                       <Button
@@ -212,7 +216,6 @@ export default function Rank() {
                     ) : undefined
                   }
                 />
-                {highlight === row.item.mediaId && <UndoActions limit={1} />}
               </View>
             )}
           </View>
@@ -229,18 +232,6 @@ export default function Rank() {
               <Button label="Find a title" secondary onPress={() => router.push('/search')} />
             }
           />
-        }
-        ListFooterComponent={
-          <View style={{ gap: 12, marginTop: 24 }}>
-            <Chip label="About Rank Score" selected={about} onPress={() => setAbout(!about)} />
-            {about && (
-              <Body muted style={s.caption}>
-                Your score / 10 comes from comparisons. Filters never change it. Early scores are
-                provisional.
-              </Body>
-            )}
-            <PreviewNotice />
-          </View>
         }
       />
     </Screen>

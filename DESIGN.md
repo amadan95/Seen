@@ -188,7 +188,7 @@ Inputs use a surface background, cream text, fine border, shared control radius,
 
 ### Navigation
 
-Five labeled tabs remain Home, Discover, Rank, Watchlist and Profile. iOS uses NativeTabs and SF Symbols; the preview fallback uses JavaScript tabs and Ionicons. Stacks handle media detail, search and settings. Logging opens a native form sheet; comparisons open a modal. Keep platform gestures and native transitions.
+Four labeled tabs are Home, Discover, Rankings and Watchlist. Profile and the private journal open from the Home header as a stack route. iOS uses NativeTabs and SF Symbols; the preview fallback uses JavaScript tabs and Ionicons. Stacks handle media detail, search and settings. Logging opens a native form sheet; comparisons open a modal. Keep platform gestures and native transitions.
 
 ### Posters and Programme Rows
 
@@ -218,7 +218,7 @@ Sentiment choices save durably before automatically opening targeted comparisons
 
 ### Availability and secondary controls
 
-Stream, Rent and Buy select one provider group at a time. Providers appear as logos with short names and access-type labels; no duplicated rental/purchase lists fill the detail screen. Region and JustWatch/TMDB attribution remain visible. Checked time and offer caveats expand under Availability details. Empty groups and failed checks retain distinct messages.
+Stream, Rent and Buy select one provider group at a time. Providers appear as company logos with short names; access types remain in screen-reader descriptions; no duplicated rental/purchase lists fill the detail screen. Region and JustWatch/TMDB attribution remain visible. Checked time and offer caveats expand under Availability details. Empty groups and failed checks retain distinct messages.
 
 Discover, ranking and Watchlist keep less-used filters and sorting inside expandable controls. Active ranking/Discover filters appear in the control label. Preview explanations and score definitions sit after content or in Settings rather than competing with film artwork.
 
@@ -232,3 +232,11 @@ and historical-log actions. Empty results disclose constraints rather than silen
 loosening them. Durable Undo follows navigation. Rank reveals a newly placed title
 among its neighbors with a brief surface highlight; long history/unplaced content
 uses virtualized rows, with stacked actions on narrow or large-text layouts.
+
+### Quiet controls, collections and journal
+
+Home retains its feature-and-rail composition but removes duplicate title/Tonight links and general refinement/history modules. Only pending placement earns the Continue ranking inset. Discover and Watchlist retain poster grids; filters and sort live in shared scrolling sheets. Watchlist has one accessible options button per title rather than expanded priority/removal controls. Ranking rows expose score help on tap and collapse pending titles. Secondary Undo actions are compact text controls and comparisons exclude unrelated receipts.
+
+The shared Sheet uses the existing plum surface, clear heading, 44-point close control, bottom safe area, keyboard avoidance and scrolling content. Reduced Motion suppresses its slide animation. Notes open there rather than expanding a detail page. Streaming logos stay visible; rental/purchase details, metadata and full overview open intentionally. Company choices preserve the source provider variants and carry a plan-entitlement caveat.
+
+Collections remain inside Watchlist and detail, never another tab. A collection is private and can contain titles independent of watch status. The journal uses poster rows and actual month/undated headings, with local note/title/date search. Yearly recaps are optional sheets and never infer hours watched or silently date historical events. Production sync and artwork sharing remain separate gates.

@@ -52,6 +52,7 @@ export default function RootLayout() {
               name="compare"
               options={{ title: 'Your ranking', presentation: 'modal' }}
             />
+            <Stack.Screen name="profile" options={{ title: '', headerBackTitle: 'Back' }} />
             <Stack.Screen name="settings" options={{ title: 'Settings' }} />
             <Stack.Screen name="tonight" options={{ title: 'Tonight' }} />
           </Stack>

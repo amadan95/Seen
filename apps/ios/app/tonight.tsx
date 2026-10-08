@@ -1,8 +1,9 @@
+import { SheetControl } from '../src/components/Sheet';
 import { useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
-import { View } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
 import type { MediaKind } from '@seen/contracts';
-import { dismissRecommendation, recommend } from '@seen/domain';
+import { dismissRecommendation, recommend, providerCompany } from '@seen/domain';
 import { useLibrary } from '../src/local/LibraryProvider';
 import {
   Body,
@@ -21,6 +22,7 @@ import { colors } from '../src/design/tokens';
 import { UndoActions } from '../src/components/UndoActions';
 
 export default function Tonight() {
+  const { fontScale } = useWindowDimensions();
   const { catalog, library, mutate, busy, snapshot } = useLibrary();
   const [kind, setKind] = useState<MediaKind>('movie'),
     [minutes, setMinutes] = useState('any');
@@ -85,81 +87,91 @@ export default function Tonight() {
     ],
   );
   const picks = servicesOnly && !library.selectedProviders.length ? [] : result.items;
-  function updateServices(providerId: number) {
+  const companies = [...new Set(providers.map((p) => providerCompany(p.name)))].map((name) => ({
+    name,
+    ids: providers.filter((p) => providerCompany(p.name) === name).map((p) => p.providerId),
+  }));
+  function updateServices(ids: number[]) {
     setError(null);
     void mutate((state) => ({
       ...state,
-      selectedProviders: state.selectedProviders.includes(providerId)
-        ? state.selectedProviders.filter((id) => id !== providerId)
-        : [...state.selectedProviders, providerId],
+      revision: state.revision + 1,
+      selectedProviders: ids.some((id) => state.selectedProviders.includes(id))
+        ? state.selectedProviders.filter((id) => !ids.includes(id))
+        : [...new Set([...state.selectedProviders, ...ids])],
     })).catch(() => setError('Your service choices could not be saved. Try again.'));
   }
   return (
     <Screen inStack>
       <Heading large>What’s on tonight?</Heading>
-      <Body muted>A small programme drawn from the titles available in this local preview.</Body>
-      <Segments
-        options={[
-          { value: 'movie', label: 'Movies' },
-          { value: 'tv', label: 'TV' },
-        ]}
-        value={kind}
-        onChange={setKind}
-      />
-      {kind === 'movie' ? (
+      <SheetControl
+        title="Tonight filters"
+        label={`${kind === 'movie' ? 'Movies' : 'TV'} · ${kind === 'movie' && minutes !== 'any' ? `${minutes} min` : 'Any length'}${servicesOnly ? ' · Your services' : ''}${watchlistOnly ? ' · Watchlist' : ''}`}
+      >
         <Segments
           options={[
-            { value: 'any', label: 'Any length' },
-            { value: '90', label: '90 min' },
-            { value: '120', label: '2 hours' },
+            { value: 'movie', label: 'Movies' },
+            { value: 'tv', label: 'TV' },
           ]}
-          value={minutes}
-          onChange={setMinutes}
+          value={kind}
+          onChange={setKind}
         />
-      ) : (
-        <Body muted style={s.caption}>
-          These are whole-show suggestions. An episode’s runtime does not describe the full
-          commitment.
-        </Body>
-      )}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        <Chip
-          label="Watchlist only"
-          selected={watchlistOnly}
-          onPress={() => setWatchlistOnly(!watchlistOnly)}
-        />
-        <Chip
-          label="On selected services"
-          selected={servicesOnly}
-          onPress={() => setServicesOnly(!servicesOnly)}
-        />
-      </View>
-      <Disclosure
-        title={`Your services${library.selectedProviders.length ? ` · ${library.selectedProviders.length} selected` : ''}`}
-      >
-        <Body muted style={s.caption}>
-          United States · exact subscription listings. Add-on channels are separate choices. Offers
-          are provider summaries, not verified plan entitlements.
-        </Body>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {providers.map((p) => (
-            <Chip
-              key={p.providerId}
-              label={p.name}
-              selected={library.selectedProviders.includes(p.providerId)}
-              onPress={() => {
-                if (!busy) updateServices(p.providerId);
-              }}
-            />
-          ))}
-        </View>
-        {!providers.length && (
-          <Body muted>
-            No subscription listings have been loaded yet. Open a title’s details or browse Discover
-            to load viewing options.
+        {kind === 'movie' ? (
+          <Segments
+            options={[
+              { value: 'any', label: 'Any length' },
+              { value: '90', label: '90 min' },
+              { value: '120', label: '2 hours' },
+            ]}
+            value={minutes}
+            onChange={setMinutes}
+          />
+        ) : (
+          <Body muted style={s.caption}>
+            These are whole-show suggestions. An episode’s runtime does not describe the full
+            commitment.
           </Body>
         )}
-      </Disclosure>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <Chip
+            label="Watchlist only"
+            selected={watchlistOnly}
+            onPress={() => setWatchlistOnly(!watchlistOnly)}
+          />
+          <Chip
+            label="On selected services"
+            selected={servicesOnly}
+            onPress={() => setServicesOnly(!servicesOnly)}
+          />
+        </View>
+        <Disclosure
+          title={`Your services${library.selectedProviders.length ? ` · ${library.selectedProviders.length} selected` : ''}`}
+        >
+          <Body muted style={s.caption}>
+            United States · companies group their reported subscription tiers and channels. A
+            company choice can include add-ons; check your plan before watching. Existing selections
+            retain their exact listings.
+          </Body>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {companies.map((p) => (
+              <Chip
+                key={p.name}
+                label={p.name}
+                selected={p.ids.some((id) => library.selectedProviders.includes(id))}
+                onPress={() => {
+                  if (!busy) updateServices(p.ids);
+                }}
+              />
+            ))}
+          </View>
+          {!providers.length && (
+            <Body muted>
+              No subscription listings have been loaded yet. Open a title’s details or browse
+              Discover to load viewing options.
+            </Body>
+          )}
+        </Disclosure>
+      </SheetControl>
       <InlineError message={error} />
       {picks.map((item) => (
         <View
@@ -171,10 +183,16 @@ export default function Tonight() {
             borderBottomColor: colors.border,
           }}
         >
-          <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+          <View
+            style={{
+              flexDirection: fontScale > 1.4 ? 'column' : 'row',
+              gap: 16,
+              alignItems: fontScale > 1.4 ? 'flex-start' : 'center',
+            }}
+          >
             <Poster
               media={item.media}
-              width={88}
+              width={118}
               onPress={() =>
                 router.push({
                   pathname: '/media/[id]',
@@ -200,22 +218,15 @@ export default function Tonight() {
               </Body>
             </View>
           </View>
-          <Button
-            label="View title"
-            secondary
-            onPress={() =>
-              router.push({
-                pathname: '/media/[id]',
-                params: {
-                  id: item.media.id,
-                  requestId: item.requestId,
-                  itemId: item.itemId,
-                  servedAt: startedAt,
-                },
-              })
-            }
-          />
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <SheetControl
+            title={`Options for ${item.media.title}`}
+            label="Title options"
+            accessibilityLabel={`Options for ${item.media.title}`}
+          >
+            <Body muted style={s.caption}>
+              Not tonight skips this visit. Not interested hides this recommendation until restored,
+              without changing your rating.
+            </Body>
             <Chip
               label="Not tonight"
               selected={false}
@@ -243,7 +254,7 @@ export default function Tonight() {
                 })
               }
             />
-          </View>
+          </SheetControl>
         </View>
       ))}
       {!picks.length && (
@@ -284,9 +295,9 @@ export default function Tonight() {
           onPress={() => setExcluded(new Set())}
         />
       )}
-      <UndoActions />
+      <UndoActions labels={['recommendation dismissal', 'restored recommendation']} />
       {library.dismissals.length > 0 && (
-        <Disclosure title={`Hidden recommendations · ${library.dismissals.length}`}>
+        <SheetControl title={`Hidden recommendations · ${library.dismissals.length}`}>
           {library.dismissals.slice(pageIndex * 10, pageIndex * 10 + 10).map((dismissal) => (
             <Button
               key={dismissal.mediaId}
@@ -325,12 +336,8 @@ export default function Tonight() {
               />
             </View>
           )}
-        </Disclosure>
+        </SheetControl>
       )}
-      <Body muted style={s.caption}>
-        “Not tonight” lasts for this visit. “Not interested” hides a recommendation until you
-        restore it; it never changes your sentiment.
-      </Body>
     </Screen>
   );
 }

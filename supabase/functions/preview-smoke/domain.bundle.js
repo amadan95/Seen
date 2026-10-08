@@ -479,6 +479,7 @@ var emptyLibrary = () => ({
   opinions: [],
   logs: [],
   notes: [],
+  collections: [],
   comparisons: [],
   watchlist: [],
   catalogEntries: [],
@@ -668,6 +669,7 @@ var collections = [
   "opinions",
   "logs",
   "notes",
+  "collections",
   "comparisons",
   "watchlist",
   "dismissals"
@@ -878,6 +880,90 @@ function retrySkippedPairs(state, sessionId) {
     )
   };
 }
+
+// packages/domain/src/journal.ts
+function saveCollection(state, id, name) {
+  const cleaned = name.trim();
+  if (!cleaned || cleaned.length > 40) throw new Error("Use a collection name of 1\u201340 characters");
+  if (state.collections.some(
+    (item) => item.id !== id && item.name.toLowerCase() === cleaned.toLowerCase()
+  ))
+    throw new Error("A collection with this name already exists");
+  const previous = state.collections.find((item) => item.id === id);
+  if (previous?.name === cleaned) return state;
+  return {
+    ...state,
+    revision: state.revision + 1,
+    collections: previous ? state.collections.map((item) => item.id === id ? { ...item, name: cleaned } : item) : [...state.collections, { id, name: cleaned, mediaIds: [] }]
+  };
+}
+function removeCollection(state, id) {
+  return {
+    ...state,
+    revision: state.revision + 1,
+    collections: state.collections.filter((item) => item.id !== id)
+  };
+}
+function setCollectionTitle(state, catalog, collectionId, mediaId, present) {
+  if (!catalog.some((media) => media.id === mediaId)) throw new Error("Title unavailable");
+  const collection = state.collections.find((item) => item.id === collectionId);
+  if (!collection) throw new Error("Collection unavailable");
+  if (collection.mediaIds.includes(mediaId) === present) return state;
+  return {
+    ...state,
+    revision: state.revision + 1,
+    collections: state.collections.map(
+      (item) => item.id === collectionId ? {
+        ...item,
+        mediaIds: present ? [...item.mediaIds, mediaId] : item.mediaIds.filter((id) => id !== mediaId)
+      } : item
+    )
+  };
+}
+function journalEntries(state, catalog, query = "") {
+  const media = new Map(catalog.map((item) => [item.id, item]));
+  const titleNotes = new Map(state.notes.map((note) => [note.mediaId, note.text]));
+  const entries = [...state.logs].sort(
+    (a, b) => (b.watchedOn ?? "").localeCompare(a.watchedOn ?? "") || b.createdAt.localeCompare(a.createdAt)
+  ).map((log) => ({
+    key: log.id,
+    mediaId: log.mediaId,
+    month: log.watchedOn?.slice(0, 7) ?? "Undated watches",
+    watchedOn: log.watchedOn,
+    note: titleNotes.get(log.mediaId) ?? "",
+    watchNote: log.note,
+    rewatch: log.rewatch,
+    noteOnly: false
+  }));
+  const logged = new Set(state.logs.map((log) => log.mediaId));
+  entries.push(
+    ...state.notes.filter((note) => note.text && !logged.has(note.mediaId)).map((note) => ({
+      key: `note:${note.mediaId}`,
+      mediaId: note.mediaId,
+      month: "Notes before watching",
+      watchedOn: null,
+      note: note.text,
+      watchNote: "",
+      rewatch: false,
+      noteOnly: true
+    }))
+  );
+  const q = query.trim().toLowerCase();
+  return entries.filter(
+    (entry) => media.has(entry.mediaId) && (!q || `${media.get(entry.mediaId).title} ${entry.watchedOn ?? ""} ${entry.note} ${entry.watchNote}`.toLowerCase().includes(q))
+  );
+}
+function viewingRecap(state, catalog, year) {
+  const media = new Map(catalog.map((item) => [item.id, item]));
+  const logs = state.logs.filter((log) => log.watchedOn?.slice(0, 4) === year);
+  return {
+    movies: logs.filter((log) => media.get(log.mediaId)?.kind === "movie").length,
+    tv: logs.filter((log) => media.get(log.mediaId)?.kind === "tv").length,
+    rewatches: logs.filter((log) => log.rewatch).length,
+    undated: state.logs.filter((log) => !log.watchedOn).length,
+    mediaIds: [...new Set(logs.map((log) => log.mediaId))]
+  };
+}
 export {
   MODEL,
   PICKER_VERSION,
@@ -897,6 +983,7 @@ export {
   fitBradleyTerry,
   groupViewingProviders,
   isEligible,
+  journalEntries,
   offerComparison,
   openComparisonSession,
   pairKey,
@@ -905,14 +992,18 @@ export {
   rankScore,
   rankingInputKey,
   recommend,
+  removeCollection,
   removeHistory,
   retrySkippedPairs,
+  saveCollection,
   saveLog,
   seededNumber,
+  setCollectionTitle,
   setPriority,
   setTitleNote,
   setWatchlist,
   sigmoid,
   undoMutation,
+  viewingRecap,
   withUndo
 };

@@ -6,9 +6,8 @@ import { colors } from '../../src/design/tokens';
 const tabs = [
   { name: 'index', label: 'Home', icon: 'home', sf: 'house' },
   { name: 'discover', label: 'Discover', icon: 'search', sf: 'magnifyingglass' },
-  { name: 'rank', label: 'Rank', icon: 'rank', sf: 'list.number' },
+  { name: 'rank', label: 'Rankings', icon: 'rank', sf: 'list.number' },
   { name: 'watchlist', label: 'Watchlist', icon: 'watchlist', sf: 'bookmark' },
-  { name: 'profile', label: 'Profile', icon: 'profile', sf: 'person.crop.circle' },
 ] as const;
 export default function TabLayout() {
   if (Platform.OS === 'ios')

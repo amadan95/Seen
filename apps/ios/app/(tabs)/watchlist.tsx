@@ -1,19 +1,19 @@
+import { Collections } from '../../src/components/Collections';
+import { Sheet, SheetControl } from '../../src/components/Sheet';
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { FlatList, View, useWindowDimensions } from 'react-native';
 import type { MediaKind } from '@seen/contracts';
-import { setPriority, setWatchlist } from '@seen/domain';
+import { setCollectionTitle, setPriority, setWatchlist } from '@seen/domain';
 import { useLibrary } from '../../src/local/LibraryProvider';
 import {
   Body,
   Button,
   Chip,
   EmptyState,
-  Disclosure,
   Heading,
   IconButton,
   InlineError,
-  PreviewNotice,
   Screen,
   Segments,
   s,
@@ -25,13 +25,27 @@ export default function Watchlist() {
   const { width, fontScale } = useWindowDimensions();
   const columns = fontScale > 1.4 ? 1 : 2;
   const posterWidth = (width - 40 - (columns - 1) * 14) / columns;
-  const { library, mutate, busy, mediaById } = useLibrary(),
+  const { library, mutate, busy, mediaById, catalog } = useLibrary(),
     [kind, setKind] = useState<MediaKind | 'all'>('all'),
     [sort, setSort] = useState('added'),
     [short, setShort] = useState(false),
+    [collectionId, setCollectionId] = useState<string | null>(null),
     [editingPriority, setEditingPriority] = useState<string | null>(null),
     [error, setError] = useState<string | null>(null);
-  const items = library.watchlist
+  const selectedCollection = library.collections.find((c) => c.id === collectionId);
+  const sourceItems = selectedCollection
+    ? [...selectedCollection.mediaIds]
+        .reverse()
+        .map(
+          (mediaId) =>
+            library.watchlist.find((item) => item.mediaId === mediaId) ?? {
+              mediaId,
+              addedAt: '',
+              priority: 0,
+            },
+        )
+    : library.watchlist;
+  const items = sourceItems
     .filter((i) => {
       const m = mediaById.get(i.mediaId)!;
       return (
@@ -40,11 +54,13 @@ export default function Watchlist() {
       );
     })
     .sort((a, b) =>
-      sort === 'priority'
-        ? b.priority - a.priority || b.addedAt.localeCompare(a.addedAt)
-        : sort === 'title'
-          ? mediaById.get(a.mediaId)!.title.localeCompare(mediaById.get(b.mediaId)!.title)
-          : b.addedAt.localeCompare(a.addedAt),
+      selectedCollection && sort === 'added'
+        ? 0
+        : sort === 'priority'
+          ? b.priority - a.priority || b.addedAt.localeCompare(a.addedAt)
+          : sort === 'title'
+            ? mediaById.get(a.mediaId)!.title.localeCompare(mediaById.get(b.mediaId)!.title)
+            : b.addedAt.localeCompare(a.addedAt),
     );
   function change(action: () => Promise<unknown>) {
     setError(null);
@@ -54,6 +70,86 @@ export default function Watchlist() {
   }
   return (
     <Screen scroll={false}>
+      <Sheet
+        title={
+          editingPriority
+            ? (mediaById.get(editingPriority)?.title ?? 'Title options')
+            : 'Title options'
+        }
+        visible={Boolean(editingPriority)}
+        onClose={() => setEditingPriority(null)}
+      >
+        {editingPriority && (
+          <>
+            {library.watchlist.some((item) => item.mediaId === editingPriority) && (
+              <Heading>Priority</Heading>
+            )}
+            {library.watchlist.some((item) => item.mediaId === editingPriority) &&
+              [
+                { value: 0, label: 'No priority' },
+                { value: 1, label: 'Interested' },
+                { value: 2, label: 'Watch next' },
+              ].map((option) => (
+                <Chip
+                  key={option.value}
+                  label={option.label}
+                  selected={
+                    library.watchlist.find((item) => item.mediaId === editingPriority)?.priority ===
+                    option.value
+                  }
+                  onPress={() => {
+                    if (!busy)
+                      change(() =>
+                        mutate((state) => setPriority(state, editingPriority, option.value)),
+                      );
+                  }}
+                />
+              ))}
+            <Collections mediaId={editingPriority} embedded />
+            {selectedCollection && (
+              <Button
+                label="Remove from this collection"
+                secondary
+                disabled={busy}
+                onPress={() =>
+                  change(async () => {
+                    await mutate(
+                      (state) =>
+                        setCollectionTitle(
+                          state,
+                          catalog,
+                          selectedCollection.id,
+                          editingPriority,
+                          false,
+                        ),
+                      'collection change',
+                    );
+                    setEditingPriority(null);
+                  })
+                }
+              />
+            )}
+            {library.watchlist.some((item) => item.mediaId === editingPriority) && (
+              <Button
+                label="Remove from watchlist"
+                secondary
+                disabled={busy}
+                onPress={() =>
+                  change(async () => {
+                    await mutate(
+                      (state) =>
+                        setWatchlist(state, editingPriority, false, new Date().toISOString()),
+                      'watchlist removal',
+                    );
+                    setEditingPriority(null);
+                  })
+                }
+              />
+            )}
+            <InlineError message={error} />
+          </>
+        )}
+      </Sheet>
       <FlatList
         key={columns}
         numColumns={columns}
@@ -76,7 +172,7 @@ export default function Watchlist() {
                 if (value === 'tv') setShort(false);
               }}
             />
-            <Disclosure
+            <SheetControl
               title={`Sort & filters · ${sort === 'added' ? 'Recent' : sort === 'priority' ? 'Priority' : 'Title'}${short ? ' · Under 2 hours' : ''}`}
             >
               <Segments
@@ -102,7 +198,19 @@ export default function Watchlist() {
                   {items.length} saved
                 </Body>
               </View>
-            </Disclosure>
+            </SheetControl>
+            <Collections
+              onSelect={(id) => {
+                setCollectionId(id);
+                setKind('all');
+                setShort(false);
+              }}
+            />
+            {collectionId && (
+              <Body muted style={s.caption}>
+                {library.collections.find((c) => c.id === collectionId)?.name}
+              </Body>
+            )}
             <InlineError message={error} />
             <UndoActions />
           </View>
@@ -114,79 +222,37 @@ export default function Watchlist() {
               width={posterWidth}
               reason={String(mediaById.get(item.mediaId)!.year ?? 'Year unknown')}
             />
-            <View style={[s.row, { flexWrap: 'wrap', gap: 4 }]}>
-              <IconButton
-                name="close"
-                label={`Remove ${mediaById.get(item.mediaId)!.title} from watchlist`}
-                onPress={() => {
-                  if (!busy)
-                    change(() =>
-                      mutate(
-                        (state) =>
-                          setWatchlist(state, item.mediaId, false, new Date().toISOString()),
-                        'watchlist removal',
-                      ),
-                    );
-                }}
-              />
-              <View style={{ alignItems: 'flex-start', marginTop: 6, marginBottom: 8 }}>
-                <Chip
-                  label={
-                    item.priority === 2
-                      ? 'Watch next'
-                      : item.priority === 1
-                        ? 'Interested'
-                        : 'Set priority'
-                  }
-                  selected={item.priority > 0}
-                  icon="star"
-                  onPress={() =>
-                    setEditingPriority(editingPriority === item.mediaId ? null : item.mediaId)
-                  }
-                />
-                {editingPriority === item.mediaId && (
-                  <View style={{ gap: 6, marginTop: 8 }}>
-                    {[
-                      { value: 0, label: 'No priority' },
-                      { value: 1, label: 'Interested' },
-                      { value: 2, label: 'Watch next' },
-                    ].map((option) => (
-                      <Chip
-                        key={option.value}
-                        label={option.label}
-                        selected={item.priority === option.value}
-                        onPress={() => {
-                          if (!busy) {
-                            change(() =>
-                              mutate((state) => setPriority(state, item.mediaId, option.value)),
-                            );
-                            setEditingPriority(null);
-                          }
-                        }}
-                      />
-                    ))}
-                  </View>
-                )}
-              </View>
-            </View>
+            <IconButton
+              name="filter"
+              label={`Options for ${mediaById.get(item.mediaId)!.title}`}
+              onPress={() => setEditingPriority(item.mediaId)}
+            />
           </View>
         )}
-        ListFooterComponent={<PreviewNotice />}
         ListEmptyComponent={
           <EmptyState
-            title={library.watchlist.length ? 'No saved titles fit' : 'Keep your next watch here'}
+            title={
+              sourceItems.length
+                ? 'No titles fit'
+                : selectedCollection
+                  ? 'Your collection is empty'
+                  : 'Keep your next watch here'
+            }
             message={
-              library.watchlist.length
+              sourceItems.length
                 ? 'Try clearing the format or runtime filter.'
-                : 'Save a movie or show from Discover. It stays here until you log it or remove it.'
+                : selectedCollection
+                  ? 'Add titles from their detail pages.'
+                  : 'Save a movie or show from Discover. It stays here until you log it or remove it.'
             }
             action={
-              library.watchlist.length ? (
+              sourceItems.length ? (
                 <Button
                   label="Clear filters"
                   onPress={() => {
                     setKind('all');
                     setShort(false);
+                    setCollectionId(null);
                   }}
                 />
               ) : (

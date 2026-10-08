@@ -1,3 +1,5 @@
+import { Collections } from '../../src/components/Collections';
+import { SheetControl, TextAction } from '../../src/components/Sheet';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, View, useWindowDimensions } from 'react-native';
@@ -10,9 +12,7 @@ import {
   Button,
   EmptyState,
   Heading,
-  Disclosure,
   InlineError,
-  PreviewNotice,
   Screen,
   Section,
   s,
@@ -126,35 +126,42 @@ export default function MediaDetail() {
           Showing recently cached metadata.
         </Body>
       )}
-      <View style={[s.row, { flexWrap: 'wrap', paddingVertical: 6 }]}>
-        <Body
-          accessibilityLabel={
-            ranked?.rankScore != null
-              ? `Your score ${ranked.rankScore.toFixed(1)} out of 10`
-              : 'Not yet scored'
-          }
-          style={{
-            fontSize: 34,
-            lineHeight: 46,
-            fontWeight: '600',
-            fontVariant: ['tabular-nums'],
-            color: colors.accent,
-            flexShrink: 0,
-          }}
-        >
-          {ranked?.rankScore?.toFixed(1) ?? '—'}
-        </Body>
-        <View style={{ flex: 1, minWidth: 150, gap: 2 }}>
-          <Body muted style={s.caption}>
-            Your score / 10{ranked?.position ? ` · #${ranked.position}` : ''}
+      {ranked?.rankScore != null && (
+        <View style={[s.row, { flexWrap: 'wrap', paddingVertical: 6 }]}>
+          <Body
+            accessibilityLabel={
+              ranked?.rankScore != null
+                ? `Your score ${ranked.rankScore.toFixed(1)} out of 10`
+                : 'Not yet scored'
+            }
+            style={{
+              fontSize: 34,
+              lineHeight: 46,
+              fontWeight: '600',
+              fontVariant: ['tabular-nums'],
+              color: colors.accent,
+              flexShrink: 0,
+            }}
+          >
+            {ranked?.rankScore?.toFixed(1) ?? '—'}
           </Body>
-          {ranked?.evidence === 'provisional' && (
+          <View style={{ flex: 1, minWidth: 150, gap: 2 }}>
             <Body muted style={s.caption}>
-              Provisional
+              Your score / 10{ranked?.position ? ` · #${ranked.position}` : ''}
             </Body>
-          )}
+            {ranked?.evidence === 'provisional' && (
+              <Body muted style={s.caption}>
+                Provisional
+              </Body>
+            )}
+          </View>
         </View>
-      </View>
+      )}
+      {opinion?.sentiment && ranked?.rankScore == null && (
+        <Body muted style={s.caption}>
+          Not yet ranked
+        </Body>
+      )}
       <View style={{ flexDirection: fontScale > 1.4 ? 'column' : 'row', gap: 12 }}>
         <Button
           style={fontScale > 1.4 ? { width: '100%' } : { flex: 1 }}
@@ -164,18 +171,12 @@ export default function MediaDetail() {
             router.push({ pathname: '/log/[id]', params: { id, requestId, itemId, servedAt } })
           }
         />
-        <Button
-          style={fontScale > 1.4 ? { width: '100%' } : { flex: 1 }}
-          label={saved ? 'Saved' : 'Watchlist'}
-          disabled={busy}
-          secondary
-          icon={saved ? 'saved' : 'watchlist'}
-          onPress={() => void save()}
-        />
+        <TextAction label={saved ? 'Saved' : 'Save'} disabled={busy} onPress={() => void save()} />
       </View>
       <InlineError message={error} />
       <UndoActions limit={1} />
       <TitleNote key={id} mediaId={id} />
+      <Collections mediaId={id} />
       <Section title="Where to watch">
         {live ? (
           <Availability data={media.availability} loading={loading} />
@@ -197,13 +198,13 @@ export default function MediaDetail() {
           {media.synopsis || 'No overview is available for this title.'}
         </Body>
         {Boolean(media.synopsis) && (
-          <Disclosure title="Read full overview">
+          <SheetControl title="Read full overview">
             <Body muted>{media.synopsis}</Body>
-          </Disclosure>
+          </SheetControl>
         )}
       </Section>
       {media.metadataComplete && (
-        <Disclosure title="Title details">
+        <SheetControl title="Title details">
           {Boolean(media.genres.length) && <Body muted>{media.genres.join(' · ')}</Body>}
           {Boolean(media.tagline) && <Body muted>{media.tagline}</Body>}
           {media.releaseDate && (
@@ -241,10 +242,10 @@ export default function MediaDetail() {
               }
             />
           )}
-        </Disclosure>
+        </SheetControl>
       )}
       {Boolean(media.cast?.length) && (
-        <Disclosure title="Cast & crew">
+        <SheetControl title="Cast & crew">
           {media.cast!.map((person, index) => (
             <View key={`${person.name}-${index}`} style={{ gap: 2 }}>
               <Body>{person.name}</Body>
@@ -255,7 +256,7 @@ export default function MediaDetail() {
               )}
             </View>
           ))}
-        </Disclosure>
+        </SheetControl>
       )}
       {opinion && (
         <Section title="Your watch">
@@ -275,7 +276,6 @@ export default function MediaDetail() {
           />
         </Section>
       )}
-      <PreviewNotice />
       <Body muted style={s.caption}>
         {live
           ? 'This product uses the TMDB API but is not endorsed or certified by TMDB.'

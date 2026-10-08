@@ -17,6 +17,7 @@ export const emptyLibrary = (): Library => ({
   opinions: [],
   logs: [],
   notes: [],
+  collections: [],
   comparisons: [],
   watchlist: [],
   catalogEntries: [],

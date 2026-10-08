@@ -226,11 +226,13 @@ export function MediaRow({
   rank,
   trailing,
   description,
+  onScore,
 }: {
   media: Media;
   rank?: RankItem;
   trailing?: React.ReactNode;
   description?: string;
+  onScore?: () => void;
 }) {
   const { fontScale, width } = useWindowDimensions();
   const largeType = fontScale > 1.4 || (Boolean(trailing) && width < 420);
@@ -277,20 +279,28 @@ export function MediaRow({
         </Pressable>
       </View>
       {rank && (
-        <Body
-          accessibilityLabel={
-            rank.rankScore === null
-              ? 'Not yet scored'
-              : `Your rank score ${rank.rankScore.toFixed(1)} out of 10`
-          }
-          style={[
-            ps.score,
-            rank.rankScore === null && { color: colors.muted },
-            largeType && { textAlign: 'left' },
-          ]}
+        <Pressable
+          accessibilityRole={onScore ? 'button' : undefined}
+          accessibilityLabel={onScore ? 'About Rank Score' : undefined}
+          onPress={onScore}
+          disabled={!onScore}
+          style={{ minHeight: 44, justifyContent: 'center' }}
         >
-          {rank.rankScore === null ? '—' : rank.rankScore.toFixed(1)}
-        </Body>
+          <Body
+            accessibilityLabel={
+              rank.rankScore === null
+                ? 'Not yet scored'
+                : `Your rank score ${rank.rankScore.toFixed(1)} out of 10`
+            }
+            style={[
+              ps.score,
+              rank.rankScore === null && { color: colors.muted },
+              largeType && { textAlign: 'left' },
+            ]}
+          >
+            {rank.rankScore === null ? '—' : rank.rankScore.toFixed(1)}
+          </Body>
+        </Pressable>
       )}
       {trailing}
     </View>

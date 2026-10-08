@@ -3,6 +3,7 @@ import { TextInput, View } from 'react-native';
 import { setTitleNote } from '@seen/domain';
 import { useLibrary } from '../local/LibraryProvider';
 import { colors } from '../design/tokens';
+import { Sheet, TextAction } from './Sheet';
 import { Body, Button, InlineError, s } from './ui';
 
 export function TitleNote({ mediaId }: { mediaId: string }) {
@@ -38,10 +39,10 @@ export function TitleNote({ mediaId }: { mediaId: string }) {
           {savedText}
         </Body>
       )}
-      {!editing ? (
-        <Button
+      {!editing && (
+        <TextAction
           label={savedText ? 'Edit private note' : 'Add a private note'}
-          secondary
+          disabled={busy}
           onPress={() => {
             setDraft(savedText);
             setEditing(true);
@@ -49,39 +50,44 @@ export function TitleNote({ mediaId }: { mediaId: string }) {
             setError(null);
           }}
         />
-      ) : (
-        <>
-          <TextInput
-            accessibilityLabel="Private title note"
-            placeholder="What will you remember?"
-            placeholderTextColor={colors.muted}
-            multiline
-            maxLength={280}
-            value={draft}
-            onChangeText={setDraft}
-            style={[s.input, { minHeight: 110, textAlignVertical: 'top' }]}
-          />
-          <Body muted style={s.caption}>
-            {draft.length}/280 · Private · saved on this device
-          </Body>
-          <Button label="Save note" disabled={busy} onPress={() => void save()} />
-          <Button
-            label="Cancel note edit"
-            secondary
-            disabled={busy}
-            onPress={() => {
-              setEditing(false);
-              setError(null);
-            }}
-          />
-        </>
       )}
+      <Sheet
+        title="Private note"
+        visible={editing}
+        onClose={() => {
+          if (!busy) setEditing(false);
+        }}
+      >
+        <TextInput
+          accessibilityLabel="Private title note"
+          placeholder="What will you remember?"
+          placeholderTextColor={colors.muted}
+          multiline
+          maxLength={280}
+          value={draft}
+          onChangeText={setDraft}
+          style={[s.input, { minHeight: 110, textAlignVertical: 'top' }]}
+        />
+        <Body muted style={s.caption}>
+          {draft.length}/280 · Private · saved on this device
+        </Body>
+        <Button label="Save note" disabled={busy} onPress={() => void save()} />
+        <Button
+          label="Cancel note edit"
+          secondary
+          disabled={busy}
+          onPress={() => {
+            setEditing(false);
+            setError(null);
+          }}
+        />
+        <InlineError message={error} />
+      </Sheet>
       {saved && (
         <Body muted accessibilityLiveRegion="polite" style={s.caption}>
           {savedText ? 'Note saved' : 'Note cleared'}
         </Body>
       )}
-      <InlineError message={error} />
     </View>
   );
 }
