@@ -29,3 +29,7 @@ Artwork-based share cards remain deferred until supplier reuse/attribution right
 ## Review verdict
 
 The cleanup preserves the approved visual identity and core ranking semantics, puts artwork before supporting copy, consolidates navigation and hides management controls behind accessible actions. The documented native/device limitations remain release checks, not claimed completed work. PRODUCT.md, DESIGN.md, spec, backlog and the approved plan record the implemented increment.
+
+## Native binary rebuild — October 8, 2026
+
+After the owner requested an iOS build, Xcode compiled SeenDev in Debug for the arm64 iOS 27 simulator with `BUILD SUCCEEDED`. Artifact: `/private/tmp/seen-ios-live-debug/Build/Products/Debug-iphonesimulator/SeenDev.app`; log: `/private/tmp/seen-ios-cleanup-build.log`. Installed on Seen Comparison Preview (`0AAD9488-7643-42BC-9427-6EEAF9F140F7`) without uninstalling or clearing its existing SQLite library. Device Hub directly showed the updated artwork-led Home and four tabs, with live catalog artwork loaded. Existing Metro on 8082 and the configured catalog bridge on 8787 were verified healthy. This development build requires those local servers; it is not a signed physical-device build, archive, TestFlight release or Apple submission. No native dependencies or source behavior changed for this rebuild.
