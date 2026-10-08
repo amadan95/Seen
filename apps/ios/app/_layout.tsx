@@ -33,10 +33,12 @@ export default function RootLayout() {
             screenOptions={{
               headerStyle: { backgroundColor: colors.background },
               headerTintColor: colors.accent,
+              headerBackTitle: 'Back',
+              headerBackButtonDisplayMode: 'generic',
               contentStyle: { backgroundColor: colors.background },
             }}
           >
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ title: 'Home', headerShown: false }} />
             <Stack.Screen name="media/[id]" options={{ title: '', headerBackTitle: 'Back' }} />
             <Stack.Screen name="search" options={{ title: 'Search', presentation: 'card' }} />
             <Stack.Screen
